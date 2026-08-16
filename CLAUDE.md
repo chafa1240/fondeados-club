@@ -44,8 +44,8 @@ Freemium:
   tablas de una en una cuando ya tengan RLS), "Enable automatic RLS"
   ACTIVADO (cada tabla nueva nace bloqueada hasta que le pongamos la regla
   de "cada usuario ve solo lo suyo").
-- Todavía NO hay repo git, NO hay repo en GitHub, NO hay código de la app
-  todavía (ni Next.js ni tablas creadas en Supabase).
+- Repo git local creado y pusheado a GitHub: `github.com/chafa1240/fondeados-club`
+  (2026-08-16). Todavía NO hay código de la app (ni Next.js todavía).
 - Decisión de negocio para el MVP: **todo lo que se construya ahora es
   gratis**. La división freemium (features pagas) se implementa recién
   después de sacar el MVP, no antes.
@@ -55,14 +55,33 @@ Freemium:
   secciones (ver más abajo).
 
 ## Próximos pasos (cuando el usuario lo pida)
-1. Terminar de definir la sección Home (resumen de Cuentas + Business
+1. Terminar de definir la sección Home (resumen de Cuentas + Funding
    Manager, ver abajo).
 2. ~~Definir tablas concretas en Supabase~~ — hecho. `supabase/schema.sql`
    corrido con éxito en el proyecto `fondeados-club` (tablas cuentas_fondeo,
    gastos, payouts + RLS + trigger, ya creadas).
-3. Crear repo (git init + GitHub).
-4. Scaffold de Next.js conectado a Supabase.
+3. ~~Crear repo (git init + GitHub)~~ — hecho. Repo `github.com/chafa1240/fondeados-club`,
+   con `CLAUDE.md`, `supabase/schema.sql` y `.gitignore` ya pusheados a `main`.
+4. ~~Scaffold de Next.js conectado a Supabase~~ — hecho (2026-08-16).
+   Next.js 14 + TypeScript + Tailwind + App Router, clientes de Supabase
+   en `src/lib/supabase/client.ts` (browser) y `server.ts` (server
+   components). `npm install` corrido, `.env.local` con la anon key
+   configurado, `npm run dev` probado y funcionando en
+   `localhost:3000`.
 5. Primera pantalla real: alta de cuentas fondeadas + gastos.
+
+**Plan completo hasta el MVP (y fases de monetización y app móvil):
+ver `ROADMAP.md`.** El próximo paso concreto es el Paso 1 del roadmap:
+login y registro (sin auth no funciona nada, porque RLS depende de
+`auth.uid()`).
+
+## Monetización (definido 2026-08-16)
+Dos fuentes de ingreso, ambas **post-MVP**:
+- **Suscripción premium** (Stripe), barata.
+- **Publicidad** (tipo AdSense) en la versión gratuita; el premium la saca.
+Además, a futuro se quiere una **app nativa Android + iOS** (plan: PWA
+primero, después React Native + Expo reusando el mismo backend de
+Supabase). Detalle en `ROADMAP.md`.
 
 ## Notas de forma de trabajar
 - El usuario prefiere ir paso a paso y confirmando antes de que se arranque
@@ -70,8 +89,8 @@ Freemium:
   correr comandos".
 
 ## Diseño de secciones (definido 2026-08-09)
-La app tiene 3 secciones principales: **Home**, **Business Manager**,
-**Cuentas**. Se definieron primero Cuentas y Business Manager (basado en
+La app tiene 3 secciones principales: **Home**, **Funding Manager**,
+**Cuentas**. Se definieron primero Cuentas y Funding Manager (basado en
 las capturas de `Dashboards/`), y Home se arma después como resumen de las
 otras dos (todavía pendiente de definir en detalle).
 
@@ -91,7 +110,7 @@ payout, notas. Decisión importante: **no** se arma un catálogo automático
 de reglas por firm (como tienen PipBack/Lea) porque implica mucho
 mantenimiento — para el MVP esos campos los completa el usuario a mano.
 
-### BUSINESS MANAGER
+### FUNDING MANAGER
 Cards de resumen arriba: Total Invertido, Total Cobrado (payouts), Net
 P&L, ROI %, Cuentas activas.
 
@@ -116,7 +135,7 @@ gastos/cuentas. Se deja para más adelante, no para el MVP.
 
 ### HOME
 Pendiente de definir en detalle. La idea es que sea un resumen/vista
-rápida que combine lo más importante de Cuentas y Business Manager
+rápida que combine lo más importante de Cuentas y Funding Manager
 (alertas, accesos directos), una vez que esas dos secciones estén
 cerradas.
 
