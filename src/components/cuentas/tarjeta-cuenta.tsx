@@ -35,8 +35,8 @@ function Anillo({ pct }: { pct: number }) {
   const largo = 2 * Math.PI * r;
 
   return (
-    <div className="relative h-24 w-24 shrink-0">
-      <svg viewBox="0 0 64 64" className="h-24 w-24 -rotate-90">
+    <div className="relative h-20 w-20 shrink-0">
+      <svg viewBox="0 0 64 64" className="h-20 w-20 -rotate-90">
         <circle
           cx="32"
           cy="32"
@@ -57,7 +57,7 @@ function Anillo({ pct }: { pct: number }) {
           className={pct >= 100 ? "stroke-emerald-400" : "stroke-emerald-500/80"}
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-base font-semibold">
+      <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold">
         {Math.round(pct)}%
       </span>
     </div>
@@ -123,14 +123,16 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
         title="Actualizar balance"
         className="group flex items-baseline gap-2 text-left"
       >
-        <span className="text-2xl font-semibold tracking-tight">
+        <span className="text-2xl font-semibold leading-tight tracking-tight">
           {plata(cuenta.balance_actual)}
         </span>
         <span className="text-xs text-neutral-600 opacity-0 transition group-hover:opacity-100">
           editar
         </span>
       </button>
-      <p className={`text-sm ${positivo ? "text-emerald-400" : "text-rose-400"}`}>
+      <p
+        className={`text-sm leading-tight ${positivo ? "text-emerald-400" : "text-rose-400"}`}
+      >
         {positivo ? "+" : "−"}
         {plata(Math.abs(v.monto))} ({positivo ? "+" : "−"}
         {porcentaje(Math.abs(v.pct))})
@@ -290,7 +292,7 @@ function Menu({
 
 function Dato({ label, valor }: { label: string; valor: string }) {
   return (
-    <div>
+    <div className="leading-tight">
       <p className="text-xs text-neutral-500">{label}</p>
       <p className="text-sm text-neutral-200">{valor}</p>
     </div>
@@ -381,7 +383,7 @@ export function TarjetaCuenta({
         </div>
       </div>
 
-      <div className="mt-3 flex items-end justify-between gap-3">
+      <div className="mt-2 flex items-center justify-between gap-3">
         <BalanceEditable cuenta={cuenta} />
         {meta !== null && (
           <div className="flex flex-col items-center">
@@ -394,7 +396,7 @@ export function TarjetaCuenta({
       </div>
 
       {meta !== null && (
-        <p className="mt-2 text-xs text-neutral-500">
+        <p className="text-xs text-neutral-500">
           {meta.falta === 0 ? (
             <span className="text-emerald-400">
               {esFondeada
@@ -430,7 +432,7 @@ export function TarjetaCuenta({
       )}
 
       {/* Lo mínimo del ciclo */}
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3">
+      <div className="mt-2.5 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2.5">
         <Dato label="Drawdown máx." valor={drawdown} />
         {esFondeada ? (
           <Dato
@@ -455,7 +457,7 @@ export function TarjetaCuenta({
 
       {/* Últimos 3 retiros */}
       {esFondeada && retiros.length > 0 && (
-        <ul className="mt-3 space-y-0.5 border-t border-neutral-800 pt-2">
+        <ul className="mt-2.5 space-y-0.5 border-t border-neutral-800 pt-2">
           {retiros.slice(0, 3).map((r) => (
             <LineaRetiro
               key={r.id}
@@ -466,7 +468,7 @@ export function TarjetaCuenta({
         </ul>
       )}
 
-      <div className="mt-2 flex justify-end">
+      <div className="mt-1 flex justify-end">
         <BotonVuelta onClick={() => setDorso(true)}>+ Información…</BotonVuelta>
       </div>
     </div>
