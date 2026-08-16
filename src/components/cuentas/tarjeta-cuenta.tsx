@@ -22,6 +22,7 @@ import {
   porcentaje,
   progresoRetiro,
   salud,
+  tieneRetiro,
   variacion,
   type Cuenta,
 } from "@/lib/cuentas";
@@ -356,8 +357,18 @@ export function TarjetaCuenta({
               : "—"
           }
         />
-        <Dato label="Profit split" valor={porcentaje(cuenta.profit_split, 0)} />
-        <Dato label="Objetivo de retiro" valor={plata(cuenta.objetivo_retiro)} />
+        {tieneRetiro(cuenta.tipo) && (
+          <>
+            <Dato
+              label="Profit split"
+              valor={porcentaje(cuenta.profit_split, 0)}
+            />
+            <Dato
+              label="Objetivo de retiro"
+              valor={plata(cuenta.objetivo_retiro)}
+            />
+          </>
+        )}
         <Dato label="No bajar de" valor={piso != null ? plata(piso) : "—"} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
       </div>

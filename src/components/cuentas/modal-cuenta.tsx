@@ -13,6 +13,7 @@ import {
   UMBRAL_SALUDABLE_DEFAULT,
   montoDesdePct,
   pctDesdeMonto,
+  tieneRetiro,
   type Cuenta,
   type Estado,
   type Tipo,
@@ -142,6 +143,7 @@ export function ModalCuenta({
   // Drawdown y umbrales se calculan sobre el tamaño de cuenta: sin ese
   // número no hay nada que calcular, así que se bloquean.
   const sinTamano = tamanoNum <= 0;
+  const esFondeada = tieneRetiro(tipo);
 
   const dd = useParPctMonto(
     texto(cuenta?.drawdown_maximo_pct),
@@ -302,15 +304,17 @@ export function ModalCuenta({
               />
             </Campo>
 
-            <Campo label="Profit split (%)">
-              <input
-                name="profit_split"
-                inputMode="decimal"
-                placeholder="90"
-                defaultValue={texto(cuenta?.profit_split)}
-                className={INPUT}
-              />
-            </Campo>
+            {esFondeada && (
+              <Campo label="Profit split (%)">
+                <input
+                  name="profit_split"
+                  inputMode="decimal"
+                  placeholder="90"
+                  defaultValue={texto(cuenta?.profit_split)}
+                  className={INPUT}
+                />
+              </Campo>
+            )}
 
             <Campo label="Balance actual (USD)" ayuda="Lo actualizás vos cuando quieras">
               <input
@@ -325,32 +329,36 @@ export function ModalCuenta({
 
           {sinTamano && <FaltaTamano />}
 
-          {/* Objetivo de retiro */}
-          <Titulo>Objetivo de retiro</Titulo>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Campo label="Quiero retirar (USD)">
-              <input
-                name="objetivo_retiro"
-                inputMode="decimal"
-                placeholder="500"
-                defaultValue={texto(cuenta?.objetivo_retiro)}
-                className={INPUT}
-              />
-            </Campo>
+          {/* Objetivo de retiro — solo tiene sentido en cuentas fondeadas */}
+          {esFondeada && (
+            <>
+              <Titulo>Objetivo de retiro</Titulo>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo label="Quiero retirar (USD)">
+                  <input
+                    name="objetivo_retiro"
+                    inputMode="decimal"
+                    placeholder="500"
+                    defaultValue={texto(cuenta?.objetivo_retiro)}
+                    className={INPUT}
+                  />
+                </Campo>
 
-            <Campo
-              label="Balance necesario para retirarlo (USD)"
-              ayuda="Cambia según la firm. Ej. Apex: para sacar $500 la cuenta tiene que marcar $2.600"
-            >
-              <input
-                name="balance_objetivo"
-                inputMode="decimal"
-                placeholder="2600"
-                defaultValue={texto(cuenta?.balance_objetivo)}
-                className={INPUT}
-              />
-            </Campo>
-          </div>
+                <Campo
+                  label="Balance necesario para retirarlo (USD)"
+                  ayuda="Cambia según la firm. Ej. Apex: para sacar $500 la cuenta tiene que marcar $2.600"
+                >
+                  <input
+                    name="balance_objetivo"
+                    inputMode="decimal"
+                    placeholder="2600"
+                    defaultValue={texto(cuenta?.balance_objetivo)}
+                    className={INPUT}
+                  />
+                </Campo>
+              </div>
+            </>
+          )}
 
           {/* Semáforo */}
           <Titulo>Semáforo de salud</Titulo>

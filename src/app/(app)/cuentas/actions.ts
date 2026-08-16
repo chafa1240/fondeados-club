@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   ESTADOS,
   estadoValido,
+  tieneRetiro,
   TIPOS,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
@@ -68,6 +69,11 @@ function datosDesdeForm(fd: FormData) {
     };
   }
 
+  // En una evaluación todavía no se cobra nada: si la cuenta es de ese
+  // tipo, estos tres campos se guardan vacíos (y se limpian si la cuenta
+  // venía de ser fondeada).
+  const conRetiro = tieneRetiro(tipo);
+
   return {
     datos: {
       tipo,
@@ -78,9 +84,9 @@ function datosDesdeForm(fd: FormData) {
       estado,
       drawdown_maximo_pct: numero(fd, "drawdown_maximo_pct"),
       drawdown_maximo_monto: numero(fd, "drawdown_maximo_monto"),
-      profit_split: numero(fd, "profit_split"),
-      objetivo_retiro: numero(fd, "objetivo_retiro"),
-      balance_objetivo,
+      profit_split: conRetiro ? numero(fd, "profit_split") : null,
+      objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
+      balance_objetivo: conRetiro ? balance_objetivo : null,
       umbral_saludable_pct,
       umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
       umbral_precaucion_pct,

@@ -105,7 +105,11 @@ las pantallas para poder reusarlos en la app móvil),
 #### Paso 4b — Ajustes pedidos después de probarlo (2026-08-16)
 Migración `supabase/002_tipos_y_salud.sql`.
 
-- **Tipo de cuenta**: `fondeada` | `challenge`. Mismos campos para las dos.
+- **Tipo de cuenta**: `fondeada` | `challenge`. En pantalla se llaman
+  **Fondeada** y **Evaluación** (el valor `challenge` queda en la base para
+  no migrar datos). La evaluación **no tiene** objetivo de retiro ni profit
+  split: son cosas de una cuenta que ya cobra. Si una cuenta pasa de
+  fondeada a evaluación, esos campos se limpian solos al guardar.
 - **Objetivo de retiro partido en dos**: `objetivo_retiro` (cuánto querés
   sacar, ej. $500) y `balance_objetivo` (qué balance tiene que marcar la
   cuenta para poder sacarlo, ej. $2.600 en Apex). El anillo mide el camino
@@ -179,6 +183,20 @@ cerca del límite, cuenta lista para payout) + accesos rápidos.
 - Textos legales mínimos (términos y privacidad) — hacen falta después
   para cobrar y para publicidad.
 - Invitar 5-10 traders a usarla y escuchar qué les falta.
+
+### Paso 8b — Inglés (definido 2026-08-16)
+La app se hace **en español**; el inglés se agrega con un selector de
+idioma. Se deja para el final del MVP porque los textos todavía cambian
+mucho y traducir dos veces es trabajo perdido.
+
+- Todos los textos visibles salen de un archivo de traducciones
+  (`src/i18n/es.ts` y `en.ts`) en vez de estar escritos dentro de cada
+  pantalla. **Esto se respeta desde ahora**, aunque el selector no exista:
+  si no, después hay que reescribir todos los componentes.
+- Selector de idioma en el header, con la elección guardada por usuario.
+- Ojo con los formatos: fechas y montos también cambian según el idioma
+  (ya está centralizado en `plata()`, `porcentaje()` y `fechaCorta()` de
+  `src/lib/cuentas.ts`).
 
 **FIN DEL MVP.** A partir de acá se decide en base a lo que digan los usuarios.
 

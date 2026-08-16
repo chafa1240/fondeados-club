@@ -111,6 +111,20 @@ Además, a futuro se quiere una **app nativa Android + iOS** (plan: PWA
 primero, después React Native + Expo reusando el mismo backend de
 Supabase). Detalle en `ROADMAP.md`.
 
+## Idioma (definido 2026-08-16)
+La app se escribe **en español** (es el idioma por defecto y el de todos
+los textos que se ven en pantalla). Más adelante tiene que poder
+**cambiarse a inglés** con un selector.
+
+Qué implica para el código de acá en adelante: **no hardcodear textos
+sueltos en las pantallas**. Cada texto visible tiene que poder salir de un
+archivo de traducciones (ej. `src/i18n/es.ts` y `en.ts`) para que sumar
+inglés sea agregar un archivo, no reescribir componentes. Los nombres de
+variables, funciones y columnas siguen en español, eso no cambia.
+
+No se implementa todavía (ver `ROADMAP.md`, Paso 8b): primero el MVP en
+español, después el selector de idioma.
+
 ## Notas de forma de trabajar
 - El usuario prefiere ir paso a paso y confirmando antes de que se arranque
   a ejecutar cosas — no asumir luz verde de una charla de idea a "empezar a

@@ -10,10 +10,22 @@
 export const TIPOS = ["fondeada", "challenge"] as const;
 export type Tipo = (typeof TIPOS)[number];
 
+/**
+ * El valor guardado en la base sigue siendo `challenge` (así no hace falta
+ * migrar datos), pero en pantalla se llama "Evaluación".
+ */
 export const TIPO_INFO: Record<Tipo, { label: string }> = {
   fondeada: { label: "Fondeada" },
-  challenge: { label: "Challenge" },
+  challenge: { label: "Evaluación" },
 };
+
+/**
+ * El objetivo de retiro y el profit split son cosas de una cuenta fondeada:
+ * en una evaluación todavía no se cobra nada.
+ */
+export function tieneRetiro(tipo: Tipo) {
+  return tipo === "fondeada";
+}
 
 /* ---------- Estados que se eligen a mano ---------- */
 
