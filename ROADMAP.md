@@ -102,12 +102,57 @@ las pantallas para poder reusarlos en la app móvil),
 
 **Resultado visible:** cargás tus cuentas reales y las ves en pantalla.
 
+#### Paso 4b — Ajustes pedidos después de probarlo (2026-08-16)
+Migración `supabase/002_tipos_y_salud.sql`.
+
+- **Tipo de cuenta**: `fondeada` | `challenge`. Mismos campos para las dos.
+- **Objetivo de retiro partido en dos**: `objetivo_retiro` (cuánto querés
+  sacar, ej. $500) y `balance_objetivo` (qué balance tiene que marcar la
+  cuenta para poder sacarlo, ej. $2.500 en Apex). El anillo mide el camino
+  desde el balance base hasta ese balance objetivo, y la tarjeta dice
+  cuánto falta.
+- **Semáforo automático**: Crítico / Precaución / Saludable ya no se
+  eligen, se calculan con el colchón que queda hasta el drawdown máximo.
+  Umbrales editables por cuenta (defaults 3% saludable, 2% precaución),
+  cargables en % o en $ con cálculo automático entre ambos.
+- **`estado` guarda solo lo manual**: `activa` (fondeada), `en_curso`
+  (challenge), `passed`, `quemada`, `archivada`. Se fueron `precaucion` y
+  `funded` de la base.
+- Fix: los botones del menú ⋯ no ejecutaban la acción (cerrar el menú
+  desmontaba el `<form>` antes del submit; ahora se llaman directo).
+
 ### Paso 5 — Gastos y payouts
 - Alta de gasto (con o sin cuenta asociada) y alta de payout.
 - Listado/tabla de movimientos, filtrable por tipo y por cuenta.
 - Editar y borrar movimientos.
 
 **Resultado visible:** cargás lo que gastaste y lo que cobraste.
+
+### Paso 5b — Resultados diarios (TP / SL) — definido 2026-08-16
+Agregado al MVP a pedido del usuario, después del Paso 5.
+
+Tabla nueva `resultados_diarios`: una fila por **día y cuenta**, con
+`fecha`, `cuenta_id`, `resultado_monto` (el neto del día en $, puede ser
+negativo), `resultado_pct` y `notas`. Se carga **uno de los dos** (monto o
+%) y el otro se completa solo, igual que el drawdown (2026-08-16: se
+descartó contar cantidad de TP y SL por día, es más simple así).
+Índice único por (`cuenta_id`, `fecha`) para no cargar el mismo día dos veces.
+
+**El balance pasa a calcularse solo**: `balance_actual` = balance base +
+suma de los resultados diarios de esa cuenta. Esto reemplaza la carga
+manual del Paso 4:
+- Se saca la edición en línea del balance de la tarjeta (o se convierte en
+  "ajuste manual" con su propia fila de resultado, para que los números
+  nunca se contradigan).
+- Hay que decidir si `cuentas_fondeo.balance_actual` se mantiene como
+  columna actualizada por trigger, o se calcula al vuelo con una vista.
+  Con trigger es más simple de leer desde la app móvil.
+
+Lo que habilita: rachas, días ganadores vs perdedores, ratio TP/SL, y
+alertas de "estás cerca del drawdown" con datos reales.
+
+**Sigue fuera del MVP** el journal trade por trade (instrumento, entrada,
+salida): esto es un resumen del día, no un registro de cada operación.
 
 ### Paso 6 — Funding Manager
 - Cards de resumen: Total Invertido, Total Cobrado, P&L Neto, ROI %,

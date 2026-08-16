@@ -92,7 +92,11 @@ Pasos 3 y 4 también hechos (2026-08-16):
   Los cálculos viven en `src/lib/cuentas.ts`, separados de las pantallas,
   para reusarlos en la app móvil más adelante.
 
-Próximo paso: Paso 5 del roadmap — gastos y payouts.
+Próximo paso: Paso 5 del roadmap — gastos y payouts. Después viene el
+**Paso 5b: resultados diarios (TP/SL)**, agregado al MVP el 2026-08-16 —
+una fila por día y cuenta con cantidad de TP, cantidad de SL y el neto del
+día, y a partir de ahí el **balance pasa a calcularse solo** (deja de
+cargarse a mano). Detalle en `ROADMAP.md`.
 
 **Nota técnica**: `npm run build` no se puede correr desde el entorno de
 Claude (el `node_modules` está instalado para Windows y el sandbox no
@@ -174,9 +178,22 @@ Una fila por cuenta fondeada/challenge. Campos: `nombre` (auto-sugerido
 `drawdown_maximo_pct` y `drawdown_maximo_monto` (se guardan los dos; el
 usuario edita cualquiera de los dos y la app recalcula el otro usando
 `tamano_cuenta` como referencia — lógica en el frontend, no en la DB),
-`profit_split` (%), `objetivo_payout` ($), `estado` (activa, precaucion,
-passed, funded, quemada, archivada — default `activa`), `balance_actual`,
-`notas`. `updated_at` se actualiza solo via trigger.
+`profit_split` (%), `balance_actual`, `notas`. `updated_at` se actualiza
+solo via trigger.
+
+**Actualizado por `supabase/002_tipos_y_salud.sql` (2026-08-16):**
+- `tipo`: `fondeada` | `challenge`.
+- `objetivo_retiro` (ex `objetivo_payout`): cuánto querés retirar (ej. 500).
+- `balance_objetivo`: qué balance tiene que marcar la cuenta para poder
+  retirar eso (ej. 2500 en Apex). Cambia por firm, por eso se carga a mano.
+  El anillo de la tarjeta mide balance base → balance objetivo.
+- `umbral_saludable_pct/_monto` y `umbral_precaucion_pct/_monto`: defaults
+  3% y 2% del tamaño de cuenta, editables por cuenta, en % o en $ (se
+  calcula uno con el otro).
+- `estado` guarda **solo lo que se elige a mano**: `activa`, `en_curso`,
+  `passed`, `quemada`, `archivada`. **Crítico / Precaución / Saludable NO
+  se guardan**: se calculan con el colchón que queda hasta el drawdown
+  (`salud()` en `src/lib/cuentas.ts`).
 
 ### gastos
 Una fila por gasto. Campos: `cuenta_id` (**nullable** — permite gastos

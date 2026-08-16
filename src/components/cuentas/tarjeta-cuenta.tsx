@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   actualizarBalance,
@@ -9,13 +9,19 @@ import {
   type EstadoForm,
 } from "@/app/(app)/cuentas/actions";
 import {
-  ESTADOS,
+  ESTADOS_POR_TIPO,
   ESTADO_INFO,
+  TIPO_INFO,
+  chipDeCuenta,
+  colchon,
+  estadoAlDesarchivar,
+  faltaParaRetirar,
   fechaCorta,
   pisoDrawdown,
   plata,
   porcentaje,
-  progresoPayout,
+  progresoRetiro,
+  salud,
   variacion,
   type Cuenta,
 } from "@/lib/cuentas";
@@ -136,15 +142,11 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
 
 /* ---------- Menú de la tarjeta ---------- */
 
-function Menu({
-  cuenta,
-  onEditar,
-}: {
-  cuenta: Cuenta;
-  onEditar: () => void;
-}) {
+function Menu({ cuenta, onEditar }: { cuenta: Cuenta; onEditar: () => void }) {
   const [abierto, setAbierto] = useState(false);
+  const [trabajando, empezar] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+  const archivada = cuenta.estado === "archivada";
 
   useEffect(() => {
     if (!abierto) return;
@@ -158,7 +160,7 @@ function Menu({
   }, [abierto]);
 
   const item =
-    "block w-full px-3 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-neutral-800";
+    "block w-full px-3 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-neutral-800 disabled:opacity-50";
 
   return (
     <div className="relative" ref={ref}>
@@ -185,38 +187,61 @@ function Menu({
           <p className="px-3 pb-1 pt-2 text-xs uppercase tracking-wide text-neutral-600">
             Cambiar estado
           </p>
-          {ESTADOS.filter((e) => e !== cuenta.estado).map((e) => (
-            <form key={e} action={cambiarEstado}>
-              <input type="hidden" name="id" value={cuenta.id} />
-              <input type="hidden" name="estado" value={e} />
-              <button type="submit" className={item} onClick={() => setAbierto(false)}>
+          {ESTADOS_POR_TIPO[cuenta.tipo]
+            .filter((e) => e !== cuenta.estado)
+            .map((e) => (
+              <button
+                key={e}
+                className={item}
+                disabled={trabajando}
+                onClick={() =>
+                  empezar(async () => {
+                    await cambiarEstado(cuenta.id, e);
+                    setAbierto(false);
+                  })
+                }
+              >
                 {ESTADO_INFO[e].label}
               </button>
-            </form>
-          ))}
+            ))}
 
           <div className="my-1 border-t border-neutral-800" />
-          <form
-            action={eliminarCuenta}
-            onSubmit={(ev) => {
+          <button
+            className={item}
+            disabled={trabajando}
+            onClick={() =>
+              empezar(async () => {
+                await cambiarEstado(
+                  cuenta.id,
+                  archivada ? estadoAlDesarchivar(cuenta.tipo) : "archivada"
+                );
+                setAbierto(false);
+              })
+            }
+          >
+            {archivada ? "Desarchivar" : "Archivar"}
+          </button>
+
+          <div className="my-1 border-t border-neutral-800" />
+          <button
+            disabled={trabajando}
+            className="block w-full px-3 py-1.5 text-left text-sm text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-50"
+            onClick={() => {
               if (
                 !confirm(
                   `¿Eliminar "${cuenta.nombre}"? Sus payouts también se borran. No se puede deshacer.`
                 )
               ) {
-                ev.preventDefault();
+                return;
               }
-              setAbierto(false);
+              empezar(async () => {
+                await eliminarCuenta(cuenta.id);
+                setAbierto(false);
+              });
             }}
           >
-            <input type="hidden" name="id" value={cuenta.id} />
-            <button
-              type="submit"
-              className="block w-full px-3 py-1.5 text-left text-sm text-rose-400 transition hover:bg-rose-500/10"
-            >
-              Eliminar
-            </button>
-          </form>
+            Eliminar
+          </button>
         </div>
       )}
     </div>
@@ -241,23 +266,31 @@ export function TarjetaCuenta({
   cuenta: Cuenta;
   onEditar: () => void;
 }) {
-  const info = ESTADO_INFO[cuenta.estado];
-  const progreso = progresoPayout(cuenta);
+  const chip = chipDeCuenta(cuenta);
+  const progreso = progresoRetiro(cuenta);
+  const falta = faltaParaRetirar(cuenta);
   const piso = pisoDrawdown(cuenta);
+  const c = colchon(cuenta);
+  const s = salud(cuenta);
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-700">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold">{cuenta.nombre}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate font-semibold">{cuenta.nombre}</h3>
+            <span className="shrink-0 rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-500">
+              {TIPO_INFO[cuenta.tipo].label}
+            </span>
+          </div>
           <p className="truncate text-sm text-neutral-400">{cuenta.firm}</p>
         </div>
         <div className="flex items-center gap-1">
           <span
-            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${info.chip}`}
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${chip.chip}`}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${info.punto}`} />
-            {info.label}
+            <span className={`h-1.5 w-1.5 rounded-full ${chip.punto}`} />
+            {chip.label}
           </span>
           <Menu cuenta={cuenta} onEditar={onEditar} />
         </div>
@@ -268,10 +301,46 @@ export function TarjetaCuenta({
         {progreso !== null && (
           <div className="flex flex-col items-center">
             <Anillo pct={progreso} />
-            <span className="mt-1 text-[11px] text-neutral-500">al payout</span>
+            <span className="mt-1 text-[11px] text-neutral-500">al retiro</span>
           </div>
         )}
       </div>
+
+      {/* Objetivo de retiro */}
+      {cuenta.balance_objetivo !== null && (
+        <p className="mt-3 text-xs text-neutral-500">
+          {falta === 0 ? (
+            <span className="text-emerald-400">
+              Ya podés retirar {plata(cuenta.objetivo_retiro)}
+            </span>
+          ) : (
+            <>
+              Faltan{" "}
+              <span className="text-neutral-300">{plata(falta)}</span> para
+              retirar {plata(cuenta.objetivo_retiro)} (balance{" "}
+              {plata(cuenta.balance_objetivo)})
+            </>
+          )}
+        </p>
+      )}
+
+      {/* Colchón hasta el drawdown */}
+      {c !== null && s !== null && (
+        <p className="mt-1 text-xs text-neutral-500">
+          Colchón hasta el drawdown:{" "}
+          <span
+            className={
+              s === "critico"
+                ? "text-rose-400"
+                : s === "precaucion"
+                  ? "text-amber-400"
+                  : "text-emerald-400"
+            }
+          >
+            {plata(c.monto)} ({porcentaje(c.pct)})
+          </span>
+        </p>
+      )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 border-t border-neutral-800 pt-4">
         <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
@@ -288,7 +357,7 @@ export function TarjetaCuenta({
           }
         />
         <Dato label="Profit split" valor={porcentaje(cuenta.profit_split, 0)} />
-        <Dato label="Objetivo payout" valor={plata(cuenta.objetivo_payout)} />
+        <Dato label="Objetivo de retiro" valor={plata(cuenta.objetivo_retiro)} />
         <Dato label="No bajar de" valor={piso != null ? plata(piso) : "—"} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
       </div>

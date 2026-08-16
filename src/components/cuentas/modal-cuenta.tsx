@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
 import {
-  ESTADOS,
+  ESTADOS_POR_TIPO,
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
-  ddMontoDesdePct,
-  ddPctDesdeMonto,
+  TIPOS,
+  TIPO_INFO,
+  UMBRAL_PRECAUCION_DEFAULT,
+  UMBRAL_SALUDABLE_DEFAULT,
+  montoDesdePct,
+  pctDesdeMonto,
   type Cuenta,
+  type Estado,
+  type Tipo,
 } from "@/lib/cuentas";
 
 const INPUT =
@@ -33,6 +39,14 @@ function Campo({
   );
 }
 
+function Titulo({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="border-t border-neutral-800 pt-4 text-xs font-medium uppercase tracking-wide text-neutral-500">
+      {children}
+    </p>
+  );
+}
+
 function Guardar() {
   const { pending } = useFormStatus();
   return (
@@ -50,6 +64,53 @@ function redondear(n: number) {
   return Math.round(n * 100) / 100;
 }
 
+function aNumero(v: string) {
+  const n = Number(v.replace(",", "."));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/**
+ * Un par de campos %/$ que se completan solos entre sí, usando el tamaño
+ * de cuenta como referencia. Lo usan el drawdown y los dos umbrales.
+ */
+function useParPctMonto(pctInicial: string, montoInicial: string) {
+  const [pct, setPct] = useState(pctInicial);
+  const [monto, setMonto] = useState(montoInicial);
+
+  function desdePct(v: string, tamano: number) {
+    setPct(v);
+    if (v === "") return setMonto("");
+    const p = aNumero(v);
+    if (tamano > 0 && !Number.isNaN(p)) {
+      setMonto(String(redondear(montoDesdePct(tamano, p))));
+    }
+  }
+
+  function desdeMonto(v: string, tamano: number) {
+    setMonto(v);
+    if (v === "") return setPct("");
+    const m = aNumero(v);
+    if (tamano > 0 && !Number.isNaN(m)) {
+      setPct(String(redondear(pctDesdeMonto(tamano, m))));
+    }
+  }
+
+  /** Cuando cambia el tamaño de cuenta, el % manda y el $ se recalcula. */
+  function recalcular(tamano: number) {
+    if (pct === "") return;
+    const p = aNumero(pct);
+    if (tamano > 0 && !Number.isNaN(p)) {
+      setMonto(String(redondear(montoDesdePct(tamano, p))));
+    }
+  }
+
+  return { pct, monto, desdePct, desdeMonto, recalcular };
+}
+
+function texto(n: number | null | undefined) {
+  return n === null || n === undefined ? "" : String(n);
+}
+
 export function ModalCuenta({
   cuenta,
   nombreSugerido,
@@ -59,57 +120,52 @@ export function ModalCuenta({
   nombreSugerido: string;
   onCerrar: () => void;
 }) {
-  const [estado, formAction] = useFormState<EstadoForm, FormData>(
+  const [estadoForm, formAction] = useFormState<EstadoForm, FormData>(
     guardarCuenta,
     {}
   );
 
-  // Drawdown: los dos campos se mantienen sincronizados entre sí.
-  const [tamano, setTamano] = useState(
-    cuenta ? String(cuenta.tamano_cuenta) : ""
-  );
-  const [ddPct, setDdPct] = useState(
-    cuenta?.drawdown_maximo_pct != null ? String(cuenta.drawdown_maximo_pct) : ""
-  );
-  const [ddMonto, setDdMonto] = useState(
-    cuenta?.drawdown_maximo_monto != null
-      ? String(cuenta.drawdown_maximo_monto)
-      : ""
-  );
+  const [tipo, setTipo] = useState<Tipo>(cuenta?.tipo ?? "fondeada");
+  const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
+  const tamanoNum = aNumero(tamano) || 0;
 
-  const tamanoNum = Number(tamano.replace(",", ".")) || 0;
+  const dd = useParPctMonto(
+    texto(cuenta?.drawdown_maximo_pct),
+    texto(cuenta?.drawdown_maximo_monto)
+  );
+  const saludable = useParPctMonto(
+    texto(cuenta?.umbral_saludable_pct ?? UMBRAL_SALUDABLE_DEFAULT),
+    texto(cuenta?.umbral_saludable_monto)
+  );
+  const precaucion = useParPctMonto(
+    texto(cuenta?.umbral_precaucion_pct ?? UMBRAL_PRECAUCION_DEFAULT),
+    texto(cuenta?.umbral_precaucion_monto)
+  );
 
   function cambiarTamano(v: string) {
     setTamano(v);
-    const t = Number(v.replace(",", ".")) || 0;
-    const p = Number(ddPct.replace(",", "."));
-    if (t > 0 && Number.isFinite(p) && ddPct !== "") {
-      setDdMonto(String(redondear(ddMontoDesdePct(t, p))));
-    }
+    const t = aNumero(v) || 0;
+    dd.recalcular(t);
+    saludable.recalcular(t);
+    precaucion.recalcular(t);
   }
 
-  function cambiarDdPct(v: string) {
-    setDdPct(v);
-    const p = Number(v.replace(",", "."));
-    if (v === "") return setDdMonto("");
-    if (tamanoNum > 0 && Number.isFinite(p)) {
-      setDdMonto(String(redondear(ddMontoDesdePct(tamanoNum, p))));
-    }
-  }
+  // Archivar/desarchivar se hace desde el menú ⋯, pero si la cuenta ya
+  // está archivada hay que poder mostrarlo acá sin cambiárselo de prepo.
+  const estadosPosibles: Estado[] =
+    cuenta?.estado === "archivada"
+      ? [...ESTADOS_POR_TIPO[tipo], "archivada"]
+      : ESTADOS_POR_TIPO[tipo];
 
-  function cambiarDdMonto(v: string) {
-    setDdMonto(v);
-    const m = Number(v.replace(",", "."));
-    if (v === "") return setDdPct("");
-    if (tamanoNum > 0 && Number.isFinite(m)) {
-      setDdPct(String(redondear(ddPctDesdeMonto(tamanoNum, m))));
-    }
-  }
+  const estadoActual =
+    cuenta && estadosPosibles.includes(cuenta.estado)
+      ? cuenta.estado
+      : estadosPosibles[0];
 
   // Cerrar al guardar bien, y con la tecla Escape.
   useEffect(() => {
-    if (estado.ok) onCerrar();
-  }, [estado.ok, onCerrar]);
+    if (estadoForm.ok) onCerrar();
+  }, [estadoForm.ok, onCerrar]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
@@ -138,6 +194,25 @@ export function ModalCuenta({
 
         <form action={formAction} className="space-y-4">
           {cuenta && <input type="hidden" name="id" value={cuenta.id} />}
+          <input type="hidden" name="tipo" value={tipo} />
+
+          {/* Tipo de cuenta */}
+          <div className="flex gap-2">
+            {TIPOS.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTipo(t)}
+                className={`flex-1 rounded-lg border px-4 py-2 text-sm transition ${
+                  tipo === t
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                    : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                }`}
+              >
+                {TIPO_INFO[t].label}
+              </button>
+            ))}
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo label="Nombre">
@@ -193,9 +268,9 @@ export function ModalCuenta({
               <input
                 name="drawdown_maximo_pct"
                 inputMode="decimal"
-                placeholder="10"
-                value={ddPct}
-                onChange={(e) => cambiarDdPct(e.target.value)}
+                placeholder="4"
+                value={dd.pct}
+                onChange={(e) => dd.desdePct(e.target.value, tamanoNum)}
                 className={INPUT}
               />
             </Campo>
@@ -204,9 +279,9 @@ export function ModalCuenta({
               <input
                 name="drawdown_maximo_monto"
                 inputMode="decimal"
-                placeholder="5000"
-                value={ddMonto}
-                onChange={(e) => cambiarDdMonto(e.target.value)}
+                placeholder="2000"
+                value={dd.monto}
+                onChange={(e) => dd.desdeMonto(e.target.value, tamanoNum)}
                 className={INPUT}
               />
             </Campo>
@@ -215,21 +290,8 @@ export function ModalCuenta({
               <input
                 name="profit_split"
                 inputMode="decimal"
-                placeholder="80"
-                defaultValue={cuenta?.profit_split ?? ""}
-                className={INPUT}
-              />
-            </Campo>
-
-            <Campo
-              label="Objetivo de payout (USD)"
-              ayuda="Ganancia que necesitás para cobrar"
-            >
-              <input
-                name="objetivo_payout"
-                inputMode="decimal"
-                placeholder="3000"
-                defaultValue={cuenta?.objetivo_payout ?? ""}
+                placeholder="90"
+                defaultValue={texto(cuenta?.profit_split)}
                 className={INPUT}
               />
             </Campo>
@@ -239,18 +301,104 @@ export function ModalCuenta({
                 name="balance_actual"
                 inputMode="decimal"
                 placeholder="Igual al tamaño de cuenta"
-                defaultValue={cuenta?.balance_actual ?? ""}
+                defaultValue={texto(cuenta?.balance_actual)}
+                className={INPUT}
+              />
+            </Campo>
+          </div>
+
+          {/* Objetivo de retiro */}
+          <Titulo>Objetivo de retiro</Titulo>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo label="Quiero retirar (USD)">
+              <input
+                name="objetivo_retiro"
+                inputMode="decimal"
+                placeholder="500"
+                defaultValue={texto(cuenta?.objetivo_retiro)}
                 className={INPUT}
               />
             </Campo>
 
-            <Campo label="Estado">
+            <Campo
+              label="Balance necesario para retirarlo (USD)"
+              ayuda="Cambia según la firm. Ej. Apex: para sacar $500 la cuenta tiene que marcar $2.500"
+            >
+              <input
+                name="balance_objetivo"
+                inputMode="decimal"
+                placeholder="2500"
+                defaultValue={texto(cuenta?.balance_objetivo)}
+                className={INPUT}
+              />
+            </Campo>
+          </div>
+
+          {/* Semáforo */}
+          <Titulo>Semáforo de salud</Titulo>
+          <p className="-mt-2 text-xs text-neutral-500">
+            Según cuánto colchón te quede hasta el drawdown máximo. El estado
+            de la cuenta se pone solo con estos valores.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo label="Saludable desde (%)">
+              <input
+                name="umbral_saludable_pct"
+                inputMode="decimal"
+                value={saludable.pct}
+                onChange={(e) => saludable.desdePct(e.target.value, tamanoNum)}
+                className={INPUT}
+              />
+            </Campo>
+            <Campo label="Saludable desde (USD)">
+              <input
+                name="umbral_saludable_monto"
+                inputMode="decimal"
+                value={saludable.monto}
+                onChange={(e) => saludable.desdeMonto(e.target.value, tamanoNum)}
+                className={INPUT}
+              />
+            </Campo>
+            <Campo label="Precaución desde (%)" ayuda="Debajo de esto: Crítico">
+              <input
+                name="umbral_precaucion_pct"
+                inputMode="decimal"
+                value={precaucion.pct}
+                onChange={(e) => precaucion.desdePct(e.target.value, tamanoNum)}
+                className={INPUT}
+              />
+            </Campo>
+            <Campo label="Precaución desde (USD)">
+              <input
+                name="umbral_precaucion_monto"
+                inputMode="decimal"
+                value={precaucion.monto}
+                onChange={(e) =>
+                  precaucion.desdeMonto(e.target.value, tamanoNum)
+                }
+                className={INPUT}
+              />
+            </Campo>
+          </div>
+
+          {/* Estado y notas */}
+          <Titulo>Estado y notas</Titulo>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo
+              label="Estado"
+              ayuda={
+                tipo === "fondeada"
+                  ? "Crítico / Precaución / Saludable se calculan solos"
+                  : undefined
+              }
+            >
               <select
                 name="estado"
-                defaultValue={cuenta?.estado ?? "activa"}
+                key={tipo}
+                defaultValue={estadoActual}
                 className={INPUT}
               >
-                {ESTADOS.map((e) => (
+                {estadosPosibles.map((e) => (
                   <option key={e} value={e}>
                     {ESTADO_INFO[e].label}
                   </option>
@@ -268,9 +416,9 @@ export function ModalCuenta({
             />
           </Campo>
 
-          {estado.error && (
+          {estadoForm.error && (
             <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-400">
-              {estado.error}
+              {estadoForm.error}
             </p>
           )}
 

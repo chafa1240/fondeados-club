@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { ESTADOS, type Estado } from "@/lib/cuentas";
+import {
+  ESTADOS,
+  estadoValido,
+  TIPOS,
+  UMBRAL_PRECAUCION_DEFAULT,
+  UMBRAL_SALUDABLE_DEFAULT,
+  type Estado,
+  type Tipo,
+} from "@/lib/cuentas";
 
 export type EstadoForm = { error?: string; ok?: string };
 
@@ -21,24 +29,48 @@ function numero(fd: FormData, campo: string) {
 }
 
 function datosDesdeForm(fd: FormData) {
+  const tipo = String(fd.get("tipo") ?? "fondeada") as Tipo;
   const nombre = texto(fd, "nombre");
   const firm = texto(fd, "firm");
   const tamano_cuenta = numero(fd, "tamano_cuenta");
   const fecha_inicio = texto(fd, "fecha_inicio");
   const estado = String(fd.get("estado") ?? "activa") as Estado;
 
+  if (!TIPOS.includes(tipo)) return { error: "Tipo de cuenta inválido." };
   if (!nombre) return { error: "Poné un nombre para la cuenta." };
   if (!firm) return { error: "Poné la firm (FTMO, Apex, etc.)." };
   if (tamano_cuenta === null || tamano_cuenta <= 0) {
     return { error: "El tamaño de la cuenta tiene que ser mayor a 0." };
   }
   if (!fecha_inicio) return { error: "Elegí la fecha de inicio." };
-  if (!ESTADOS.includes(estado)) return { error: "Estado inválido." };
+  if (!ESTADOS.includes(estado) || !estadoValido(tipo, estado)) {
+    return { error: "Ese estado no corresponde a este tipo de cuenta." };
+  }
 
   const balance = numero(fd, "balance_actual");
+  const balance_objetivo = numero(fd, "balance_objetivo");
+
+  if (balance_objetivo !== null && balance_objetivo <= tamano_cuenta) {
+    return {
+      error:
+        "El balance necesario para retirar tiene que ser mayor al tamaño de la cuenta.",
+    };
+  }
+
+  const umbral_saludable_pct =
+    numero(fd, "umbral_saludable_pct") ?? UMBRAL_SALUDABLE_DEFAULT;
+  const umbral_precaucion_pct =
+    numero(fd, "umbral_precaucion_pct") ?? UMBRAL_PRECAUCION_DEFAULT;
+
+  if (umbral_precaucion_pct > umbral_saludable_pct) {
+    return {
+      error: "El umbral de precaución no puede ser mayor al de saludable.",
+    };
+  }
 
   return {
     datos: {
+      tipo,
       nombre,
       firm,
       tamano_cuenta,
@@ -47,7 +79,12 @@ function datosDesdeForm(fd: FormData) {
       drawdown_maximo_pct: numero(fd, "drawdown_maximo_pct"),
       drawdown_maximo_monto: numero(fd, "drawdown_maximo_monto"),
       profit_split: numero(fd, "profit_split"),
-      objetivo_payout: numero(fd, "objetivo_payout"),
+      objetivo_retiro: numero(fd, "objetivo_retiro"),
+      balance_objetivo,
+      umbral_saludable_pct,
+      umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
+      umbral_precaucion_pct,
+      umbral_precaucion_monto: numero(fd, "umbral_precaucion_monto"),
       // Si no cargó balance todavía, arranca en el balance base.
       balance_actual: balance === null ? tamano_cuenta : balance,
       notas: texto(fd, "notas"),
@@ -79,13 +116,24 @@ export async function guardarCuenta(
 
 /* ---------- acciones rápidas desde la tarjeta ---------- */
 
-export async function cambiarEstado(fd: FormData) {
-  const id = String(fd.get("id") ?? "");
-  const estado = String(fd.get("estado") ?? "") as Estado;
+/**
+ * Ojo: estas dos se llaman directo desde el menú de la tarjeta (no con
+ * <form action=...>). Con formulario, cerrar el menú desmontaba el form
+ * antes de que se enviara y la acción nunca llegaba a correr.
+ */
+export async function cambiarEstado(id: string, estado: Estado) {
   if (!id || !ESTADOS.includes(estado)) return;
 
   const supabase = createClient();
   await supabase.from("cuentas_fondeo").update({ estado }).eq("id", id);
+  revalidatePath("/cuentas");
+}
+
+export async function eliminarCuenta(id: string) {
+  if (!id) return;
+
+  const supabase = createClient();
+  await supabase.from("cuentas_fondeo").delete().eq("id", id);
   revalidatePath("/cuentas");
 }
 
@@ -110,23 +158,17 @@ export async function actualizarBalance(
   return { ok: "Balance actualizado." };
 }
 
-export async function eliminarCuenta(fd: FormData) {
-  const id = String(fd.get("id") ?? "");
-  if (!id) return;
-
-  const supabase = createClient();
-  await supabase.from("cuentas_fondeo").delete().eq("id", id);
-  revalidatePath("/cuentas");
-}
-
 /* ---------- errores en castellano ---------- */
 
 function mensajeDeError(mensaje: string) {
   if (mensaje.includes("row-level security")) {
     return "No tenés permiso para guardar esto. Probá cerrar sesión y volver a entrar.";
   }
+  if (mensaje.includes("permission denied")) {
+    return "La tabla no tiene permisos para la API. Corré supabase/exponer_tablas.sql en el SQL Editor.";
+  }
   if (mensaje.includes("does not exist") || mensaje.includes("schema cache")) {
-    return "La tabla de cuentas no está expuesta en la API de Supabase. Revisá Settings → API → Exposed schemas.";
+    return "Falta correr la migración supabase/002_tipos_y_salud.sql en el SQL Editor de Supabase.";
   }
   return mensaje;
 }

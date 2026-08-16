@@ -5,55 +5,61 @@
  * así el día que exista la app móvil se reusa tal cual.
  */
 
+/* ---------- Tipo de cuenta ---------- */
+
+export const TIPOS = ["fondeada", "challenge"] as const;
+export type Tipo = (typeof TIPOS)[number];
+
+export const TIPO_INFO: Record<Tipo, { label: string }> = {
+  fondeada: { label: "Fondeada" },
+  challenge: { label: "Challenge" },
+};
+
+/* ---------- Estados que se eligen a mano ---------- */
+
 export const ESTADOS = [
   "activa",
-  "precaucion",
+  "en_curso",
   "passed",
-  "funded",
   "quemada",
   "archivada",
 ] as const;
 
 export type Estado = (typeof ESTADOS)[number];
 
-export type Cuenta = {
-  id: string;
-  nombre: string;
-  firm: string;
-  tamano_cuenta: number;
-  fecha_inicio: string;
-  drawdown_maximo_pct: number | null;
-  drawdown_maximo_monto: number | null;
-  profit_split: number | null;
-  objetivo_payout: number | null;
-  estado: Estado;
-  balance_actual: number;
-  notas: string | null;
-  created_at: string;
-  updated_at: string;
+/**
+ * Qué estados tiene sentido elegir según el tipo de cuenta.
+ * `archivada` no está acá a propósito: archivar es una acción aparte
+ * (guardar la cuenta sin borrarla), no un estado más de la lista.
+ */
+export const ESTADOS_POR_TIPO: Record<Tipo, Estado[]> = {
+  fondeada: ["activa", "quemada"],
+  challenge: ["en_curso", "passed", "quemada"],
 };
 
-export const ESTADO_INFO: Record<
-  Estado,
-  { label: string; chip: string; punto: string }
-> = {
+/** Los estados que se pueden guardar para un tipo, archivada incluida. */
+export function estadoValido(tipo: Tipo, estado: Estado) {
+  return estado === "archivada" || ESTADOS_POR_TIPO[tipo].includes(estado);
+}
+
+/** Estado al que vuelve una cuenta cuando se desarchiva. */
+export function estadoAlDesarchivar(tipo: Tipo): Estado {
+  return tipo === "fondeada" ? "activa" : "en_curso";
+}
+
+export const ESTADO_INFO: Record<Estado, Chip> = {
   activa: {
     label: "Activa",
-    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-    punto: "bg-emerald-400",
+    chip: "border-neutral-700 bg-neutral-800/60 text-neutral-300",
+    punto: "bg-neutral-400",
   },
-  precaucion: {
-    label: "Precaución",
-    chip: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-    punto: "bg-amber-400",
-  },
-  passed: {
-    label: "Passed",
+  en_curso: {
+    label: "En curso",
     chip: "border-sky-500/30 bg-sky-500/10 text-sky-400",
     punto: "bg-sky-400",
   },
-  funded: {
-    label: "Funded",
+  passed: {
+    label: "Passed",
     chip: "border-violet-500/30 bg-violet-500/10 text-violet-400",
     punto: "bg-violet-400",
   },
@@ -67,6 +73,62 @@ export const ESTADO_INFO: Record<
     chip: "border-neutral-700 bg-neutral-800/60 text-neutral-400",
     punto: "bg-neutral-500",
   },
+};
+
+/* ---------- Salud: se calcula sola con el balance ---------- */
+
+export const SALUDES = ["saludable", "precaucion", "critico"] as const;
+export type Salud = (typeof SALUDES)[number];
+
+type Chip = { label: string; chip: string; punto: string };
+
+export const SALUD_INFO: Record<Salud, Chip> = {
+  saludable: {
+    label: "Saludable",
+    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    punto: "bg-emerald-400",
+  },
+  precaucion: {
+    label: "Precaución",
+    chip: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+    punto: "bg-amber-400",
+  },
+  critico: {
+    label: "Crítico",
+    chip: "border-rose-500/30 bg-rose-500/10 text-rose-400",
+    punto: "bg-rose-400",
+  },
+};
+
+/** Umbrales por defecto, en % del tamaño de cuenta. */
+export const UMBRAL_SALUDABLE_DEFAULT = 3;
+export const UMBRAL_PRECAUCION_DEFAULT = 2;
+
+/* ---------- La cuenta ---------- */
+
+export type Cuenta = {
+  id: string;
+  tipo: Tipo;
+  nombre: string;
+  firm: string;
+  tamano_cuenta: number;
+  fecha_inicio: string;
+  drawdown_maximo_pct: number | null;
+  drawdown_maximo_monto: number | null;
+  profit_split: number | null;
+  /** Cuánto querés retirar. Ej: 500 */
+  objetivo_retiro: number | null;
+  /** Qué balance tiene que marcar la cuenta para poder retirarlo. Ej: 2500 */
+  balance_objetivo: number | null;
+  umbral_saludable_pct: number;
+  umbral_saludable_monto: number | null;
+  umbral_precaucion_pct: number;
+  umbral_precaucion_monto: number | null;
+  estado: Estado;
+  balance_actual: number;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 /** Firms más comunes — solo sugerencias, el campo es texto libre. */
@@ -107,18 +169,18 @@ export function fechaCorta(iso: string) {
   return `${d}/${m}/${a}`;
 }
 
-/* ---------- Cálculos ---------- */
+/* ---------- Conversión % <-> $ (drawdown y umbrales) ---------- */
 
-/** Drawdown: convierte % a $ usando el tamaño de la cuenta. */
-export function ddMontoDesdePct(tamano: number, pct: number) {
+export function montoDesdePct(tamano: number, pct: number) {
   return (tamano * pct) / 100;
 }
 
-/** Drawdown: convierte $ a % usando el tamaño de la cuenta. */
-export function ddPctDesdeMonto(tamano: number, monto: number) {
+export function pctDesdeMonto(tamano: number, monto: number) {
   if (!tamano) return 0;
   return (monto / tamano) * 100;
 }
+
+/* ---------- Cálculos de la cuenta ---------- */
 
 /** Ganancia (o pérdida) acumulada desde el balance base. */
 export function variacion(cuenta: Cuenta) {
@@ -127,28 +189,79 @@ export function variacion(cuenta: Cuenta) {
   return { monto, pct };
 }
 
-/**
- * % de avance hacia el próximo payout.
- * Se mide contra la ganancia necesaria (objetivo_payout), no contra el balance.
- * Sin objetivo cargado devuelve null (la tarjeta no muestra el anillo).
- */
-export function progresoPayout(cuenta: Cuenta): number | null {
-  if (!cuenta.objetivo_payout) return null;
-  const ganancia = cuenta.balance_actual - cuenta.tamano_cuenta;
-  const pct = (ganancia / cuenta.objetivo_payout) * 100;
-  return Math.max(0, Math.min(100, pct));
-}
-
 /** Piso de la cuenta: hasta dónde puede caer antes de quemarse. */
 export function pisoDrawdown(cuenta: Cuenta): number | null {
   if (cuenta.drawdown_maximo_monto === null) return null;
   return cuenta.tamano_cuenta - cuenta.drawdown_maximo_monto;
 }
 
+/**
+ * Colchón: cuánta plata te queda antes de tocar el drawdown máximo,
+ * en $ y en % del tamaño de cuenta.
+ */
+export function colchon(cuenta: Cuenta): { monto: number; pct: number } | null {
+  const piso = pisoDrawdown(cuenta);
+  if (piso === null) return null;
+  const monto = cuenta.balance_actual - piso;
+  return {
+    monto,
+    pct: cuenta.tamano_cuenta ? (monto / cuenta.tamano_cuenta) * 100 : 0,
+  };
+}
+
+/**
+ * Semáforo de salud, calculado con el colchón que queda hasta el drawdown.
+ * Sin drawdown cargado no se puede saber: devuelve null.
+ */
+export function salud(cuenta: Cuenta): Salud | null {
+  const c = colchon(cuenta);
+  if (c === null) return null;
+  if (c.pct >= cuenta.umbral_saludable_pct) return "saludable";
+  if (c.pct >= cuenta.umbral_precaucion_pct) return "precaucion";
+  return "critico";
+}
+
+/**
+ * Qué mostrar en la tarjeta.
+ * Si la cuenta está activa / en curso, manda el semáforo de salud;
+ * si está passed, quemada o archivada, manda el estado elegido a mano.
+ */
+export function chipDeCuenta(cuenta: Cuenta): Chip {
+  const enJuego = cuenta.estado === "activa" || cuenta.estado === "en_curso";
+  if (!enJuego) return ESTADO_INFO[cuenta.estado];
+
+  if (cuenta.tipo === "fondeada") {
+    const s = salud(cuenta);
+    return s ? SALUD_INFO[s] : ESTADO_INFO.activa;
+  }
+
+  return ESTADO_INFO.en_curso;
+}
+
+/**
+ * % de avance hacia el retiro.
+ * Se mide desde el balance base hasta el balance que hay que alcanzar
+ * para poder retirar (ese número cambia según la firm).
+ */
+export function progresoRetiro(cuenta: Cuenta): number | null {
+  const meta = cuenta.balance_objetivo;
+  if (meta === null || meta <= cuenta.tamano_cuenta) return null;
+
+  const recorrido = cuenta.balance_actual - cuenta.tamano_cuenta;
+  const total = meta - cuenta.tamano_cuenta;
+  return Math.max(0, Math.min(100, (recorrido / total) * 100));
+}
+
+/** Cuánto falta de balance para poder retirar. 0 = ya podés. */
+export function faltaParaRetirar(cuenta: Cuenta): number | null {
+  if (cuenta.balance_objetivo === null) return null;
+  return Math.max(0, cuenta.balance_objetivo - cuenta.balance_actual);
+}
+
 /** Sugiere el próximo nombre libre de la serie: PA1, PA2, PA3… */
 export function sugerirNombre(cuentas: { nombre: string }[]) {
   const usados = cuentas
-    .map((c) => /^PA(\d+)$/i.exec(c.nombre.trim()))
+    .map((c) => /^PA\s?(\d+)$/i.exec(c.nombre.trim()))
     .filter(Boolean)
     .map((m) => Number(m![1]));
   const proximo = usados.length ? Math.max(...usados) + 1 : 1;
