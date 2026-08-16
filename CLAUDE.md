@@ -71,9 +71,17 @@ Freemium:
 5. Primera pantalla real: alta de cuentas fondeadas + gastos.
 
 **Plan completo hasta el MVP (y fases de monetización y app móvil):
-ver `ROADMAP.md`.** El próximo paso concreto es el Paso 1 del roadmap:
-login y registro (sin auth no funciona nada, porque RLS depende de
-`auth.uid()`).
+ver `ROADMAP.md`.**
+
+Pasos 1 y 2 del roadmap ya están hechos (2026-08-16):
+- **Auth funcionando** (email + contraseña con confirmación por email,
+  middleware protegiendo rutas privadas).
+- **App publicada en https://fondeados-club.vercel.app** (Vercel plan
+  Hobby, deploy automático en cada push a `main`). Registro **cerrado**
+  por ahora: se invita desde Supabase → Authentication → Users.
+
+Próximo paso: Paso 3 del roadmap — layout general (menú Home / Cuentas /
+Funding Manager + espacios `<AdSlot />` reservados para publicidad futura).
 
 ## Monetización (definido 2026-08-16)
 Dos fuentes de ingreso, ambas **post-MVP**:

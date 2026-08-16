@@ -20,36 +20,42 @@ termina en algo que se pueda ver funcionando.
 Todo lo de esta fase es **gratis y sin publicidad activa**. El objetivo es
 tener algo usable por vos y por un puñado de traders para validar la idea.
 
-### Paso 1 — Login y registro
+### Paso 1 — Login y registro ✅ HECHO (2026-08-16)
 Sin esto no funciona nada más: las reglas de RLS de Supabase dependen de
-que haya un usuario logueado (`auth.uid()`), así que hoy la app no puede
-ni leer ni escribir datos.
+que haya un usuario logueado (`auth.uid()`).
 
-- Pantallas de registro / login / recuperar contraseña.
-- Login con email+contraseña y con Google (Google baja mucho la fricción).
-- Middleware que protege las páginas privadas: sin sesión, te manda al login.
-- Verificar que un usuario ve solo sus propios datos.
+- ✅ Pantallas de login, registro, recuperar contraseña y nueva contraseña.
+- ✅ Login con **email + contraseña**, con confirmación de email activada.
+  (Google se puede agregar más adelante si baja la conversión).
+- ✅ Middleware que protege las páginas privadas: sin sesión, al login.
+- ✅ Probado de punta a punta: registro → email de confirmación → dentro.
 
-**Resultado visible:** te podés crear una cuenta, entrar, y salir.
+Archivos: `src/middleware.ts`, `src/lib/supabase/middleware.ts`,
+`src/app/login/`, `src/app/registro/`, `src/app/recuperar/`,
+`src/app/nueva-password/`, `src/app/auth/confirmar/`,
+`src/components/auth-ui.tsx`.
 
-### Paso 2 — Publicar en internet (deploy en Vercel)
-Se hace ahora, temprano, no al final. La app queda en internet pero
-detrás del login: nadie ve nada sin cuenta. Si querés control total, se
-puede desactivar el registro abierto en Supabase y crear vos las cuentas
-a mano (entra solo quien invitás).
+**Pendiente menor:** al publicar (Paso 2) hay que agregar la URL de
+producción en Supabase → Authentication → URL Configuration, si no los
+links de los emails siguen apuntando a `localhost`.
 
-- Conectar el repo de GitHub a Vercel: cada cambio subido se publica solo
-  en 1-2 minutos.
-- Configurar las claves de Supabase en Vercel.
-- Dirección gratis tipo `fondeados-club.vercel.app` (el dominio propio se
-  compra cuando quieras, ver Paso 8).
+### Paso 2 — Publicar en internet (deploy en Vercel) ✅ HECHO (2026-08-16)
 
-**Por qué acá y no al final:** probás desde el celular sin depender de tu
-PC, y si algo se rompe al publicar te enterás el primer día y no al final.
+- ✅ Repo de GitHub conectado a Vercel (plan Hobby / gratis). Cada push a
+  `main` se publica solo en 1-2 minutos.
+- ✅ Variables `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  cargadas en Vercel.
+- ✅ **URL de producción: https://fondeados-club.vercel.app**
+- ✅ Supabase → Authentication → URL Configuration: Site URL apuntando a la
+  URL de producción, y Redirect URLs con `https://fondeados-club.vercel.app/**`
+  y `http://localhost:3000/**` (para seguir probando en local).
+- ✅ Probado: login funciona desde el sitio publicado.
+- ✅ **Registro cerrado**: "Allow new users to sign up" desactivado en
+  Supabase. Para sumar gente: Authentication → Users → Invite user. Se
+  reabre con un clic cuando el MVP esté listo.
+
 De acá en adelante, cada sección se construye contra el sitio publicado.
-
-**Resultado visible:** la app en internet, entrás desde cualquier
-dispositivo.
+El dominio propio se compra en el Paso 8.
 
 ### Paso 3 — Layout general de la app
 El "esqueleto" donde después entran las 3 secciones.
