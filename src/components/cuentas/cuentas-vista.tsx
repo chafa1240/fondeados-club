@@ -7,12 +7,16 @@ import { TarjetaCuenta } from "./tarjeta-cuenta";
 import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
+  SALUDES,
+  SALUD_INFO,
   TIPO_INFO,
   enJuego,
   plata,
+  salud,
   sugerirNombre,
   type Cuenta,
   type Retiro,
+  type Salud,
   type Tipo,
 } from "@/lib/cuentas";
 
@@ -74,7 +78,10 @@ export function CuentasVista({
   retiros: Record<string, Retiro[]>;
 }) {
   const [pestana, setPestana] = useState<Pestana>("todas");
-  const [estado, setEstado] = useState<string | null>(null);
+  // Los dos grupos permiten marcar varios a la vez. Dentro de un grupo
+  // las opciones suman (O); entre grupos se cruzan (Y).
+  const [estados, setEstados] = useState<string[]>([]);
+  const [saludes, setSaludes] = useState<Salud[]>([]);
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
   const [modal, setModal] = useState<null | { cuenta?: Cuenta }>(null);
@@ -82,7 +89,14 @@ export function CuentasVista({
 
   function cambiarPestana(p: Pestana) {
     setPestana(p);
-    setEstado(null); // los estados de un tipo no aplican al otro
+    setEstados([]); // los estados de un tipo no aplican al otro
+    setSaludes([]);
+  }
+
+  function alternar<T>(lista: T[], valor: T): T[] {
+    return lista.includes(valor)
+      ? lista.filter((v) => v !== valor)
+      : [...lista, valor];
   }
 
   const firms = useMemo(
@@ -110,16 +124,23 @@ export function CuentasVista({
         if (pestana !== "todas" && c.tipo !== pestana) return false;
         if (firm !== "todas" && c.firm !== firm) return false;
 
-        if (estado !== null) {
-          const filtro = filtrosEstado.find((f) => f.valor === estado);
-          if (filtro && !filtro.pasa(c)) return false;
+        if (estados.length > 0) {
+          const pasaAlguno = estados.some((v) =>
+            filtrosEstado.find((f) => f.valor === v)?.pasa(c)
+          );
+          if (!pasaAlguno) return false;
+        }
+
+        if (saludes.length > 0) {
+          const s = salud(c);
+          if (s === null || !saludes.includes(s)) return false;
         }
 
         return true;
       }),
     // filtrosEstado se deriva de pestana, no hace falta en las dependencias
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cuentas, pestana, estado, verArchivadas, firm]
+    [cuentas, pestana, estados, saludes, verArchivadas, firm]
   );
 
   const capitalGestionado = visibles.reduce((a, c) => a + c.tamano_cuenta, 0);
@@ -168,9 +189,9 @@ export function CuentasVista({
         {filtrosEstado.map((f) => (
           <button
             key={f.valor}
-            onClick={() => setEstado(estado === f.valor ? null : f.valor)}
+            onClick={() => setEstados((l) => alternar(l, f.valor))}
             className={`rounded-lg px-2.5 py-1 transition ${
-              estado === f.valor
+              estados.includes(f.valor)
                 ? "bg-neutral-800 text-neutral-100"
                 : "text-neutral-500 hover:text-neutral-300"
             }`}
@@ -178,6 +199,29 @@ export function CuentasVista({
             {f.label}
           </button>
         ))}
+
+        {/* Salud del drawdown: solo tiene sentido en fondeadas */}
+        {pestana === "fondeada" && (
+          <>
+            <span className="text-neutral-800">|</span>
+            {SALUDES.map((s) => (
+              <button
+                key={s}
+                onClick={() => setSaludes((l) => alternar(l, s))}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition ${
+                  saludes.includes(s)
+                    ? "bg-neutral-800 text-neutral-100"
+                    : "text-neutral-500 hover:text-neutral-300"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${SALUD_INFO[s].punto}`}
+                />
+                {SALUD_INFO[s].label}
+              </button>
+            ))}
+          </>
+        )}
 
         <button
           onClick={() => setVerArchivadas((v) => !v)}
