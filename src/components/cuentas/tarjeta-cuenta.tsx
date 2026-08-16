@@ -12,15 +12,14 @@ import {
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   TIPO_INFO,
+  anillo,
   chipDeCuenta,
   colchon,
   estadoAlDesarchivar,
-  faltaParaRetirar,
   fechaCorta,
   pisoDrawdown,
   plata,
   porcentaje,
-  progresoRetiro,
   salud,
   tieneRetiro,
   variacion,
@@ -268,8 +267,8 @@ export function TarjetaCuenta({
   onEditar: () => void;
 }) {
   const chip = chipDeCuenta(cuenta);
-  const progreso = progresoRetiro(cuenta);
-  const falta = faltaParaRetirar(cuenta);
+  const meta = anillo(cuenta);
+  const esFondeada = tieneRetiro(cuenta.tipo);
   const piso = pisoDrawdown(cuenta);
   const c = colchon(cuenta);
   const s = salud(cuenta);
@@ -299,27 +298,32 @@ export function TarjetaCuenta({
 
       <div className="mt-4 flex items-end justify-between gap-4">
         <BalanceEditable cuenta={cuenta} />
-        {progreso !== null && (
+        {meta !== null && (
           <div className="flex flex-col items-center">
-            <Anillo pct={progreso} />
-            <span className="mt-1 text-[11px] text-neutral-500">al retiro</span>
+            <Anillo pct={meta.pct} />
+            <span className="mt-1 text-[11px] text-neutral-500">
+              {meta.etiqueta}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Objetivo de retiro */}
-      {cuenta.balance_objetivo !== null && (
+      {/* Qué falta para llegar al objetivo */}
+      {meta !== null && (
         <p className="mt-3 text-xs text-neutral-500">
-          {falta === 0 ? (
+          {meta.falta === 0 ? (
             <span className="text-emerald-400">
-              Ya podés retirar {plata(cuenta.objetivo_retiro)}
+              {esFondeada
+                ? `Ya podés retirar ${plata(cuenta.objetivo_retiro)}`
+                : "Objetivo alcanzado: ya pasaste la evaluación"}
             </span>
           ) : (
             <>
-              Faltan{" "}
-              <span className="text-neutral-300">{plata(falta)}</span> para
-              retirar {plata(cuenta.objetivo_retiro)} (balance{" "}
-              {plata(cuenta.balance_objetivo)})
+              Faltan <span className="text-neutral-300">{plata(meta.falta)}</span>{" "}
+              {esFondeada
+                ? `para retirar ${plata(cuenta.objetivo_retiro)}`
+                : "para pasar la evaluación"}{" "}
+              (balance {plata(meta.meta)})
             </>
           )}
         </p>
@@ -357,7 +361,7 @@ export function TarjetaCuenta({
               : "—"
           }
         />
-        {tieneRetiro(cuenta.tipo) && (
+        {esFondeada ? (
           <>
             <Dato
               label="Profit split"
@@ -368,6 +372,19 @@ export function TarjetaCuenta({
               valor={plata(cuenta.objetivo_retiro)}
             />
           </>
+        ) : (
+          <Dato
+            label="Profit target"
+            valor={
+              cuenta.profit_target_monto != null
+                ? `${plata(cuenta.profit_target_monto)}${
+                    cuenta.profit_target_pct != null
+                      ? ` (${porcentaje(cuenta.profit_target_pct)})`
+                      : ""
+                  }`
+                : "—"
+            }
+          />
         )}
         <Dato label="No bajar de" valor={piso != null ? plata(piso) : "—"} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />

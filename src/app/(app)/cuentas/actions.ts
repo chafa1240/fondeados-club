@@ -87,6 +87,9 @@ function datosDesdeForm(fd: FormData) {
       profit_split: conRetiro ? numero(fd, "profit_split") : null,
       objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
       balance_objetivo: conRetiro ? balance_objetivo : null,
+      // Al revés: el profit target es de la evaluación, no de la fondeada.
+      profit_target_pct: conRetiro ? null : numero(fd, "profit_target_pct"),
+      profit_target_monto: conRetiro ? null : numero(fd, "profit_target_monto"),
       umbral_saludable_pct,
       umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
       umbral_precaucion_pct,

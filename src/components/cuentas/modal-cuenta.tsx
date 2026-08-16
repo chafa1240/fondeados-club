@@ -153,6 +153,10 @@ export function ModalCuenta({
     texto(cuenta?.umbral_saludable_pct ?? UMBRAL_SALUDABLE_DEFAULT),
     texto(cuenta?.umbral_saludable_monto)
   );
+  const target = useParPctMonto(
+    texto(cuenta?.profit_target_pct),
+    texto(cuenta?.profit_target_monto)
+  );
   const precaucion = useParPctMonto(
     texto(cuenta?.umbral_precaucion_pct ?? UMBRAL_PRECAUCION_DEFAULT),
     texto(cuenta?.umbral_precaucion_monto)
@@ -162,6 +166,7 @@ export function ModalCuenta({
     setTamano(v);
     const t = aNumero(v) || 0;
     dd.recalcular(t);
+    target.recalcular(t);
     saludable.recalcular(t);
     precaucion.recalcular(t);
   }
@@ -353,6 +358,44 @@ export function ModalCuenta({
                     inputMode="decimal"
                     placeholder="2600"
                     defaultValue={texto(cuenta?.balance_objetivo)}
+                    className={INPUT}
+                  />
+                </Campo>
+              </div>
+            </>
+          )}
+
+          {/* Profit target — el objetivo que aprueba la evaluación */}
+          {!esFondeada && (
+            <>
+              <Titulo>Profit target</Titulo>
+              <p className="-mt-2 text-xs text-neutral-500">
+                Cuánto hay que ganar para pasar la evaluación. El anillo de la
+                tarjeta mide cuánto te falta.
+              </p>
+              {sinTamano && <FaltaTamano />}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo label="Profit target (%)">
+                  <input
+                    name="profit_target_pct"
+                    inputMode="decimal"
+                    disabled={sinTamano}
+                    placeholder="8"
+                    value={target.pct}
+                    onChange={(e) => target.desdePct(e.target.value, tamanoNum)}
+                    className={INPUT}
+                  />
+                </Campo>
+                <Campo label="Profit target (USD)">
+                  <input
+                    name="profit_target_monto"
+                    inputMode="decimal"
+                    disabled={sinTamano}
+                    placeholder="4000"
+                    value={target.monto}
+                    onChange={(e) =>
+                      target.desdeMonto(e.target.value, tamanoNum)
+                    }
                     className={INPUT}
                   />
                 </Campo>

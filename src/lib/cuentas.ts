@@ -132,6 +132,9 @@ export type Cuenta = {
   objetivo_retiro: number | null;
   /** Qué balance tiene que marcar la cuenta para poder retirarlo. Ej: 2600 */
   balance_objetivo: number | null;
+  /** Solo evaluaciones: cuánto hay que ganar para pasarla. */
+  profit_target_pct: number | null;
+  profit_target_monto: number | null;
   umbral_saludable_pct: number;
   umbral_saludable_monto: number | null;
   umbral_precaucion_pct: number;
@@ -251,23 +254,37 @@ export function chipDeCuenta(cuenta: Cuenta): Chip {
 }
 
 /**
- * % de avance hacia el retiro.
- * Se mide desde el balance base hasta el balance que hay que alcanzar
- * para poder retirar (ese número cambia según la firm).
+ * El anillo de la tarjeta.
+ *
+ * En una cuenta fondeada mide el camino hasta el balance que te habilita
+ * a retirar; en una evaluación, hasta el profit target que la aprueba.
+ * En los dos casos se mide desde el balance base.
+ *
+ * Devuelve null si falta el dato con el que se calcula.
  */
-export function progresoRetiro(cuenta: Cuenta): number | null {
-  const meta = cuenta.balance_objetivo;
+export function anillo(cuenta: Cuenta): {
+  pct: number;
+  etiqueta: string;
+  meta: number;
+  falta: number;
+} | null {
+  const meta = tieneRetiro(cuenta.tipo)
+    ? cuenta.balance_objetivo
+    : cuenta.profit_target_monto === null
+      ? null
+      : cuenta.tamano_cuenta + cuenta.profit_target_monto;
+
   if (meta === null || meta <= cuenta.tamano_cuenta) return null;
 
   const recorrido = cuenta.balance_actual - cuenta.tamano_cuenta;
   const total = meta - cuenta.tamano_cuenta;
-  return Math.max(0, Math.min(100, (recorrido / total) * 100));
-}
 
-/** Cuánto falta de balance para poder retirar. 0 = ya podés. */
-export function faltaParaRetirar(cuenta: Cuenta): number | null {
-  if (cuenta.balance_objetivo === null) return null;
-  return Math.max(0, cuenta.balance_objetivo - cuenta.balance_actual);
+  return {
+    pct: Math.max(0, Math.min(100, (recorrido / total) * 100)),
+    etiqueta: tieneRetiro(cuenta.tipo) ? "al retiro" : "al target",
+    meta,
+    falta: Math.max(0, meta - cuenta.balance_actual),
+  };
 }
 
 /** Sugiere el próximo nombre libre de la serie: PA1, PA2, PA3… */

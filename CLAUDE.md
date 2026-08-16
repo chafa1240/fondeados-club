@@ -196,7 +196,14 @@ usuario edita cualquiera de los dos y la app recalcula el otro usando
 solo via trigger.
 
 **Actualizado por `supabase/002_tipos_y_salud.sql` (2026-08-16):**
-- `tipo`: `fondeada` | `challenge`.
+- `tipo`: `fondeada` | `challenge` (en pantalla: **Fondeada** /
+  **Evaluación**). La evaluación no tiene objetivo de retiro ni profit
+  split; la fondeada no tiene profit target. Al guardar se limpian los
+  campos del otro tipo.
+- `profit_target_pct` / `profit_target_monto` (`003_profit_target.sql`):
+  solo evaluaciones, cuánto hay que ganar para pasarla. El anillo de la
+  tarjeta se basa en esto para evaluaciones y en `balance_objetivo` para
+  fondeadas — ver `anillo()` en `src/lib/cuentas.ts`.
 - `objetivo_retiro` (ex `objetivo_payout`): cuánto querés retirar (ej. 500).
 - `balance_objetivo`: qué balance tiene que marcar la cuenta para poder
   retirar eso (ej. 2600 en Apex). Cambia por firm, por eso se carga a mano.
