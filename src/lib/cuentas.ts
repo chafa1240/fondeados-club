@@ -118,7 +118,7 @@ export type Cuenta = {
   profit_split: number | null;
   /** Cuánto querés retirar. Ej: 500 */
   objetivo_retiro: number | null;
-  /** Qué balance tiene que marcar la cuenta para poder retirarlo. Ej: 2500 */
+  /** Qué balance tiene que marcar la cuenta para poder retirarlo. Ej: 2600 */
   balance_objetivo: number | null;
   umbral_saludable_pct: number;
   umbral_saludable_monto: number | null;

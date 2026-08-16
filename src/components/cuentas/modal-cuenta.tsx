@@ -340,12 +340,12 @@ export function ModalCuenta({
 
             <Campo
               label="Balance necesario para retirarlo (USD)"
-              ayuda="Cambia según la firm. Ej. Apex: para sacar $500 la cuenta tiene que marcar $2.500"
+              ayuda="Cambia según la firm. Ej. Apex: para sacar $500 la cuenta tiene que marcar $2.600"
             >
               <input
                 name="balance_objetivo"
                 inputMode="decimal"
-                placeholder="2500"
+                placeholder="2600"
                 defaultValue={texto(cuenta?.balance_objetivo)}
                 className={INPUT}
               />

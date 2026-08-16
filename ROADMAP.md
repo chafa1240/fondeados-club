@@ -108,7 +108,7 @@ Migración `supabase/002_tipos_y_salud.sql`.
 - **Tipo de cuenta**: `fondeada` | `challenge`. Mismos campos para las dos.
 - **Objetivo de retiro partido en dos**: `objetivo_retiro` (cuánto querés
   sacar, ej. $500) y `balance_objetivo` (qué balance tiene que marcar la
-  cuenta para poder sacarlo, ej. $2.500 en Apex). El anillo mide el camino
+  cuenta para poder sacarlo, ej. $2.600 en Apex). El anillo mide el camino
   desde el balance base hasta ese balance objetivo, y la tarjeta dice
   cuánto falta.
 - **Semáforo automático**: Crítico / Precaución / Saludable ya no se

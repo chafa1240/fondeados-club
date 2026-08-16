@@ -185,7 +185,7 @@ solo via trigger.
 - `tipo`: `fondeada` | `challenge`.
 - `objetivo_retiro` (ex `objetivo_payout`): cuánto querés retirar (ej. 500).
 - `balance_objetivo`: qué balance tiene que marcar la cuenta para poder
-  retirar eso (ej. 2500 en Apex). Cambia por firm, por eso se carga a mano.
+  retirar eso (ej. 2600 en Apex). Cambia por firm, por eso se carga a mano.
   El anillo de la tarjeta mide balance base → balance objetivo.
 - `umbral_saludable_pct/_monto` y `umbral_precaucion_pct/_monto`: defaults
   3% y 2% del tamaño de cuenta, editables por cuenta, en % o en $ (se
