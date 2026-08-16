@@ -60,7 +60,7 @@ export function estadoValido(tipo: Tipo, estado: Estado) {
  */
 export const FILTROS_POR_TIPO: Record<Tipo, Estado[]> = {
   fondeada: ["activa", "quemada"],
-  challenge: ["passed", "quemada"],
+  challenge: ["en_curso", "passed", "quemada"],
 };
 
 /**
