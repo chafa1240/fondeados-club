@@ -22,6 +22,10 @@ import {
 
 export type EstadoForm = { error?: string; ok?: string };
 
+/** Se usa en los dos caminos que guardan la fecha de cierre. */
+const ERROR_CIERRE_ANTES =
+  "La cuenta no puede haber terminado antes de la fecha de inicio.";
+
 /* ---------- helpers de lectura del formulario ---------- */
 
 function texto(fd: FormData, campo: string) {
@@ -67,6 +71,13 @@ function datosDesdeForm(fd: FormData) {
   if (!fecha_inicio) return { error: "Elegí la fecha de inicio." };
   if (!ESTADOS.includes(estado) || !estadoValido(tipo, estado)) {
     return { error: "Ese estado no corresponde a este tipo de cuenta." };
+  }
+
+  // Una cuenta no puede cerrarse antes de haber empezado.
+  const fecha_cierre = esCierre(estado) ? texto(fd, "fecha_cierre") : null;
+
+  if (fecha_cierre !== null && fecha_cierre < fecha_inicio) {
+    return { error: ERROR_CIERRE_ANTES };
   }
 
   const balance = numero(fd, "balance_actual");
@@ -129,7 +140,7 @@ function datosDesdeForm(fd: FormData) {
     umbral_precaucion_pct,
     umbral_precaucion_monto: numero(fd, "umbral_precaucion_monto"),
     // Solo tiene fecha de cierre la cuenta que ya terminó su ciclo.
-    fecha_cierre: esCierre(estado) ? texto(fd, "fecha_cierre") : null,
+    fecha_cierre,
     // Si no cargó balance todavía, arranca en el balance base.
     balance_actual: balance === null ? tamano_cuenta : balance,
     notas: texto(fd, "notas"),
@@ -214,8 +225,8 @@ export async function cambiarEstado(
   estado: Estado,
   /** Día en que pasó o se quemó. Solo se usa en esos dos estados. */
   fechaCierre?: string | null
-) {
-  if (!id || !ESTADOS.includes(estado)) return;
+): Promise<EstadoForm> {
+  if (!id || !ESTADOS.includes(estado)) return {};
 
   const supabase = createClient();
 
@@ -236,21 +247,39 @@ export async function cambiarEstado(
     cambios.fecha_cierre = null;
   }
 
-  if (estado === "passed") {
+  if (esCierre(estado)) {
     const { data: cuenta } = await supabase
       .from("cuentas_fondeo")
-      .select("tipo, tamano_cuenta, balance_actual, profit_target_monto")
+      .select(
+        "tipo, tamano_cuenta, balance_actual, profit_target_monto, fecha_inicio",
+      )
       .eq("id", id)
       .single();
 
-    if (cuenta) {
+    if (!cuenta) return { error: "No se encontró la cuenta." };
+
+    // Una cuenta no puede haber terminado antes de arrancar.
+    if (cambios.fecha_cierre !== null && cambios.fecha_cierre !== undefined) {
+      if (cambios.fecha_cierre < cuenta.fecha_inicio) {
+        return { error: ERROR_CIERRE_ANTES };
+      }
+    }
+
+    if (estado === "passed") {
       const balance = balanceAlPasar(cuenta);
       if (balance !== null) cambios.balance_actual = balance;
     }
   }
 
-  await supabase.from("cuentas_fondeo").update(cambios).eq("id", id);
+  const { error } = await supabase
+    .from("cuentas_fondeo")
+    .update(cambios)
+    .eq("id", id);
+
+  if (error) return { error: mensajeDeError(error.message) };
+
   revalidatePath("/cuentas");
+  return { ok: "Estado actualizado." };
 }
 
 export async function eliminarCuenta(id: string) {
@@ -368,6 +397,9 @@ export async function eliminarRetiro(id: string, cuenta_id: string) {
 /* ---------- errores en castellano ---------- */
 
 function mensajeDeError(mensaje: string) {
+  if (mensaje.includes("cuentas_fondeo_fecha_cierre_check")) {
+    return ERROR_CIERRE_ANTES;
+  }
   if (mensaje.includes("row-level security")) {
     return "No tenés permiso para guardar esto. Probá cerrar sesión y volver a entrar.";
   }

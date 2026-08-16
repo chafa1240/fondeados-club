@@ -6,6 +6,7 @@ import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
 import {
   CANTIDAD_MAXIMA_LOTE,
   esCierre,
+  fechaCorta,
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
@@ -168,6 +169,10 @@ export function ModalCuenta({
     setTipo(nuevo);
   }
   const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
+  // Controlada porque es el mínimo posible para la fecha de cierre.
+  const [fechaInicio, setFechaInicio] = useState(
+    cuenta?.fecha_inicio ?? new Date().toISOString().slice(0, 10)
+  );
   const tamanoNum = aNumero(tamano) || 0;
 
   // Drawdown y umbrales se calculan sobre el tamaño de cuenta: sin ese
@@ -377,9 +382,8 @@ export function ModalCuenta({
                 name="fecha_inicio"
                 type="date"
                 required
-                defaultValue={
-                  cuenta?.fecha_inicio ?? new Date().toISOString().slice(0, 10)
-                }
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
                 className={INPUT}
               />
             </Campo>
@@ -698,12 +702,17 @@ export function ModalCuenta({
             {/* La fecha de cierre solo aplica si la cuenta ya terminó */}
             {esCierre(estado) && (
               <Campo
-                label={estado === "passed" ? "¿Qué día la pasaste?" : "¿Qué día se quemó?"}
-                ayuda="Se puede dejar vacío"
+                label={
+                  estado === "passed"
+                    ? "¿Qué día la pasaste?"
+                    : "¿Qué día se quemó?"
+                }
+                ayuda={`Se puede dejar vacío. No puede ser anterior al ${fechaCorta(fechaInicio)}.`}
               >
                 <input
                   name="fecha_cierre"
                   type="date"
+                  min={fechaInicio}
                   max={new Date().toISOString().slice(0, 10)}
                   defaultValue={cuenta?.fecha_cierre ?? ""}
                   className={INPUT}

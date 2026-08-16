@@ -194,12 +194,32 @@ function ModalCierre({
 }: {
   cuenta: Cuenta;
   estado: "passed" | "quemada";
-  onConfirmar: (fecha: string | null) => void;
+  onConfirmar: (fecha: string | null) => Promise<string | null>;
   onCerrar: () => void;
 }) {
   const hoy = new Date().toISOString().slice(0, 10);
-  const [fecha, setFecha] = useState(cuenta.fecha_cierre ?? hoy);
+  // No puede haber terminado antes de arrancar, ni en el futuro.
+  const minimo = cuenta.fecha_inicio;
+  const [fecha, setFecha] = useState(
+    cuenta.fecha_cierre ?? (minimo > hoy ? minimo : hoy)
+  );
+  const [error, setError] = useState<string | null>(null);
   const [trabajando, empezar] = useTransition();
+
+  const invalida = fecha !== "" && fecha < minimo;
+
+  function confirmar(valor: string | null) {
+    if (valor !== null && valor < minimo) {
+      return setError(
+        `La cuenta arrancó el ${fechaCorta(minimo)}: no puede haber terminado antes.`
+      );
+    }
+    setError(null);
+    empezar(async () => {
+      const err = await onConfirmar(valor);
+      if (err) setError(err);
+    });
+  }
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
@@ -221,16 +241,32 @@ function ModalCierre({
         <input
           type="date"
           value={fecha}
+          min={minimo}
           max={hoy}
-          onChange={(e) => setFecha(e.target.value)}
-          className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+          onChange={(e) => {
+            setFecha(e.target.value);
+            setError(null);
+          }}
+          className={`mt-4 w-full rounded-lg border bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 ${
+            invalida ? "border-rose-500/60" : "border-neutral-700"
+          }`}
         />
+
+        <p className="mt-1.5 text-xs text-neutral-600">
+          La cuenta arrancó el {fechaCorta(minimo)}.
+        </p>
+
+        {error && (
+          <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-400">
+            {error}
+          </p>
+        )}
 
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
             disabled={trabajando}
-            onClick={() => empezar(() => onConfirmar(null))}
+            onClick={() => confirmar(null)}
             className="rounded-lg px-3 py-2 text-sm text-neutral-500 transition hover:text-neutral-300 disabled:opacity-50"
           >
             Sin fecha
@@ -244,8 +280,8 @@ function ModalCierre({
           </button>
           <button
             type="button"
-            disabled={trabajando || !fecha}
-            onClick={() => empezar(() => onConfirmar(fecha))}
+            disabled={trabajando || !fecha || invalida}
+            onClick={() => confirmar(fecha)}
             className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {trabajando ? "Guardando…" : "Guardar"}
@@ -286,7 +322,9 @@ function Menu({
     setAbierto(false);
 
     if (esCierre(e)) return setCerrando(e);
-    empezar(() => cambiarEstado(cuenta.id, e));
+    empezar(async () => {
+      await cambiarEstado(cuenta.id, e);
+    });
   }
 
   useEffect(() => {
@@ -431,8 +469,10 @@ function Menu({
           estado={cerrando}
           onCerrar={() => setCerrando(null)}
           onConfirmar={async (fecha) => {
-            await cambiarEstado(cuenta.id, cerrando, fecha);
+            const r = await cambiarEstado(cuenta.id, cerrando, fecha);
+            if (r.error) return r.error;
             setCerrando(null);
+            return null;
           }}
         />
       )}
