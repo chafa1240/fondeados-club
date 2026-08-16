@@ -54,6 +54,24 @@ export function estadoValido(tipo: Tipo, estado: Estado) {
   return estado === "archivada" || ESTADOS_POR_TIPO[tipo].includes(estado);
 }
 
+/**
+ * Los filtros de estado de la pantalla de Cuentas, según el tipo elegido.
+ * En "Todas" no se filtra por estado.
+ */
+export const FILTROS_POR_TIPO: Record<Tipo, Estado[]> = {
+  fondeada: ["activa", "quemada"],
+  challenge: ["passed", "quemada"],
+};
+
+/** Etiquetas en plural, para los filtros. */
+export const ESTADO_PLURAL: Record<Estado, string> = {
+  activa: "Activas",
+  en_curso: "En curso",
+  passed: "Pasadas",
+  quemada: "Quemadas",
+  archivada: "Archivadas",
+};
+
 /** Estado al que vuelve una cuenta cuando se desarchiva. */
 export function estadoAlDesarchivar(tipo: Tipo): Estado {
   return tipo === "fondeada" ? "activa" : "en_curso";
@@ -71,7 +89,7 @@ export const ESTADO_INFO: Record<Estado, Chip> = {
     punto: "bg-sky-400",
   },
   passed: {
-    label: "Passed",
+    label: "Pasadas",
     chip: "border-violet-500/30 bg-violet-500/10 text-violet-400",
     punto: "bg-violet-400",
   },
