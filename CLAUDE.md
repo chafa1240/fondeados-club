@@ -80,8 +80,24 @@ Pasos 1 y 2 del roadmap ya están hechos (2026-08-16):
   Hobby, deploy automático en cada push a `main`). Registro **cerrado**
   por ahora: se invita desde Supabase → Authentication → Users.
 
-Próximo paso: Paso 3 del roadmap — layout general (menú Home / Cuentas /
-Funding Manager + espacios `<AdSlot />` reservados para publicidad futura).
+Pasos 3 y 4 también hechos (2026-08-16):
+- **Layout general**: menú Home / Funding Manager / Cuentas, header con
+  email + salir, `<AdSlot />` reservados (hoy no ocupan nada).
+- **Sección Cuentas completa**: tarjetas con estado, balance, variación y
+  anillo de % al payout; modal de alta/edición con drawdown que se calcula
+  solo entre % y $; cambiar estado, archivar, eliminar; filtros
+  Activas/Archivadas y por Firm; nombre auto-sugerido PA1/PA2.
+  **El balance actual se carga a mano** (editable en línea desde la
+  tarjeta), no se deduce de los payouts.
+  Los cálculos viven en `src/lib/cuentas.ts`, separados de las pantallas,
+  para reusarlos en la app móvil más adelante.
+
+Próximo paso: Paso 5 del roadmap — gastos y payouts.
+
+**Nota técnica**: `npm run build` no se puede correr desde el entorno de
+Claude (el `node_modules` está instalado para Windows y el sandbox no
+tiene red). La verificación se hace con `npx tsc --noEmit` y `eslint`, y
+el build real lo hace Vercel al pushear.
 
 ## Monetización (definido 2026-08-16)
 Dos fuentes de ingreso, ambas **post-MVP**:

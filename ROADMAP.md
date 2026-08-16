@@ -57,24 +57,48 @@ links de los emails siguen apuntando a `localhost`.
 De acá en adelante, cada sección se construye contra el sitio publicado.
 El dominio propio se compra en el Paso 8.
 
-### Paso 3 — Layout general de la app
-El "esqueleto" donde después entran las 3 secciones.
+### Paso 3 — Layout general de la app ✅ HECHO (2026-08-16)
 
-- Menú lateral con Home / Cuentas / Funding Manager.
-- Header con tu usuario y botón de salir.
-- Estilo visual base (tema oscuro, tipografía, colores, tarjetas).
-- **Espacios de publicidad reservados desde el diseño** (ver más abajo).
+- ✅ Menú lateral con **Home / Funding Manager / Cuentas** (ese orden),
+  que en celular se convierte en botón hamburguesa.
+- ✅ Header con el email del usuario y botón de salir.
+- ✅ Estilo visual base (tema oscuro, tarjetas, verde esmeralda de acento).
+- ✅ Las 3 rutas creadas y navegables, con placeholder cada una.
+- ✅ **`<AdSlot />` reservado** en dos lugares (banner al pie del contenido
+  y lateral en pantallas grandes). Hoy no ocupa ni un píxel.
 
-**Resultado visible:** navegás entre las 3 secciones (vacías por ahora).
+Archivos: `src/app/(app)/layout.tsx`, `src/app/(app)/page.tsx`,
+`src/app/(app)/cuentas/`, `src/app/(app)/funding-manager/`,
+`src/components/nav.tsx`, `ad-slot.tsx`, `seccion.tsx`.
 
-### Paso 4 — Sección Cuentas (el corazón del MVP)
-- Listado de cuentas en tarjetas: nombre, firm, estado con color, balance
-  actual, variación, anillo de "% al payout", datos del ciclo.
-- Modal "Nueva cuenta" con todos los campos definidos (incluyendo el
-  drawdown que se calcula solo entre % y $).
-- Editar cuenta, cambiar estado, archivar, eliminar.
-- Filtros: Activas/Archivadas, por Firm.
-- Sugerencia automática de nombre ("PA1", "PA2", …).
+Interruptores de publicidad (variables de entorno, hoy sin definir):
+`NEXT_PUBLIC_ADS_ENABLED=true` enciende avisos reales,
+`NEXT_PUBLIC_ADS_DEBUG=true` muestra los huecos marcados para revisar
+que no molesten.
+
+### Paso 4 — Sección Cuentas (el corazón del MVP) ✅ HECHO (2026-08-16)
+
+- ✅ Listado de cuentas en tarjetas: nombre, firm, estado con color, balance
+  actual, variación desde el balance base, anillo de "% al payout" y datos
+  del ciclo (balance base, drawdown máx., profit split, objetivo, "no bajar
+  de", fecha de inicio).
+- ✅ Modal "Nueva cuenta" con todos los campos, incluido el **drawdown que
+  se calcula solo** entre % y $ usando el tamaño de cuenta.
+- ✅ Editar cuenta, cambiar estado (menú ⋯), archivar (estado `archivada`)
+  y eliminar con confirmación.
+- ✅ Filtros: Activas/Archivadas y por Firm (el selector de firm aparece
+  recién cuando hay más de una).
+- ✅ Sugerencia automática de nombre ("PA1", "PA2", …).
+- ✅ **Balance actual editable en línea** desde la propia tarjeta: se carga
+  a mano, no se deduce de los payouts (decisión 2026-08-16).
+- ✅ Estados vacíos ("todavía no cargaste ninguna cuenta") y mensajes de
+  error en castellano.
+
+Archivos: `src/lib/cuentas.ts` (tipos y todos los cálculos, separados de
+las pantallas para poder reusarlos en la app móvil),
+`src/app/(app)/cuentas/page.tsx` y `actions.ts`,
+`src/components/cuentas/cuentas-vista.tsx`, `tarjeta-cuenta.tsx`,
+`modal-cuenta.tsx`.
 
 **Resultado visible:** cargás tus cuentas reales y las ves en pantalla.
 

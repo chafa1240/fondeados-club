@@ -1,15 +1,34 @@
-import { EncabezadoSeccion, Placeholder } from "@/components/seccion";
+import { EncabezadoSeccion } from "@/components/seccion";
+import { CuentasVista } from "@/components/cuentas/cuentas-vista";
+import { createClient } from "@/lib/supabase/server";
+import type { Cuenta } from "@/lib/cuentas";
 
-export default function CuentasPage() {
+// Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
+export const dynamic = "force-dynamic";
+
+export default async function CuentasPage() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("cuentas_fondeo")
+    .select("*")
+    .order("created_at", { ascending: false });
+
   return (
     <>
       <EncabezadoSeccion
         titulo="Cuentas"
         descripcion="Tus cuentas fondeadas y challenges."
       />
-      <Placeholder>
-        Próximo paso: las tarjetas de cuentas y el alta de cuenta nueva.
-      </Placeholder>
+
+      {error ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-6 text-sm text-rose-300">
+          <p className="font-medium">No se pudieron cargar las cuentas.</p>
+          <p className="mt-1 text-rose-400/80">{error.message}</p>
+        </div>
+      ) : (
+        <CuentasVista cuentas={(data ?? []) as Cuenta[]} />
+      )}
     </>
   );
 }

@@ -6,8 +6,8 @@ import { useState } from "react";
 
 const SECCIONES = [
   { href: "/", label: "Home", icono: HomeIcon },
-  { href: "/cuentas", label: "Cuentas", icono: CuentasIcon },
   { href: "/funding-manager", label: "Funding Manager", icono: ManagerIcon },
+  { href: "/cuentas", label: "Cuentas", icono: CuentasIcon },
 ];
 
 function esActiva(pathname: string, href: string) {
