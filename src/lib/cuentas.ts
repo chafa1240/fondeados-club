@@ -166,12 +166,33 @@ export type Cuenta = {
   umbral_saludable_monto: number | null;
   umbral_precaucion_pct: number;
   umbral_precaucion_monto: number | null;
+  /** Lo ya retirado antes de empezar a usar la app. */
+  retiros_previos: number;
+  /** Lo que costó activar la cuenta. null = no tuvo fee. */
+  fee_activacion: number | null;
   estado: Estado;
   balance_actual: number;
   notas: string | null;
   created_at: string;
   updated_at: string;
 };
+
+/** Un retiro cobrado (fila de la tabla `payouts`). */
+export type Retiro = {
+  id: string;
+  cuenta_id: string;
+  monto: number;
+  fecha: string;
+  notas: string | null;
+};
+
+/**
+ * Total retirado de una cuenta: el arrastre inicial más todos los retiros
+ * cargados en la app.
+ */
+export function totalRetirado(cuenta: Cuenta, retiros: Retiro[]) {
+  return retiros.reduce((a, r) => a + r.monto, cuenta.retiros_previos);
+}
 
 /** Firms más comunes — solo sugerencias, el campo es texto libre. */
 export const FIRMS_SUGERIDAS = [

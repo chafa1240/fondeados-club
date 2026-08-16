@@ -144,6 +144,10 @@ export function ModalCuenta({
   // número no hay nada que calcular, así que se bloquean.
   const sinTamano = tamanoNum <= 0;
   const esFondeada = tieneRetiro(tipo);
+  // Si la cuenta ya existía sin fee, arranca en "no tuvo".
+  const [conFee, setConFee] = useState(
+    cuenta ? cuenta.fee_activacion !== null : true
+  );
 
   const dd = useParPctMonto(
     texto(cuenta?.drawdown_maximo_pct),
@@ -361,9 +365,65 @@ export function ModalCuenta({
                     className={INPUT}
                   />
                 </Campo>
+
+                <Campo
+                  label="Retiros previos (USD)"
+                  ayuda="Lo que ya sacaste de esta cuenta antes de usar la app"
+                >
+                  <input
+                    name="retiros_previos"
+                    inputMode="decimal"
+                    placeholder="0"
+                    defaultValue={texto(cuenta?.retiros_previos)}
+                    className={INPUT}
+                  />
+                </Campo>
               </div>
             </>
           )}
+
+          {/* Fee de activación — puede no haber tenido */}
+          <Titulo>Fee de activación</Titulo>
+          <div className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="tiene_fee" value={conFee ? "si" : "no"} />
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setConFee(true)}
+                aria-label="Tuvo fee de activación"
+                className={`rounded-lg border px-3 py-2 text-sm transition ${
+                  conFee
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                    : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
+                }`}
+              >
+                ✓ Tuvo
+              </button>
+              <button
+                type="button"
+                onClick={() => setConFee(false)}
+                aria-label="No tuvo fee de activación"
+                className={`rounded-lg border px-3 py-2 text-sm transition ${
+                  !conFee
+                    ? "border-rose-500/40 bg-rose-500/10 text-rose-400"
+                    : "border-neutral-800 text-neutral-500 hover:border-neutral-700"
+                }`}
+              >
+                ✕ No tuvo
+              </button>
+            </div>
+
+            <div className="min-w-[12rem] flex-1">
+              <input
+                name="fee_activacion"
+                inputMode="decimal"
+                disabled={!conFee}
+                placeholder={conFee ? "85" : "Sin fee de activación"}
+                defaultValue={texto(cuenta?.fee_activacion)}
+                className={INPUT}
+              />
+            </div>
+          </div>
 
           {/* Profit target — el objetivo que aprueba la evaluación */}
           {!esFondeada && (

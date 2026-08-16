@@ -90,6 +90,10 @@ function datosDesdeForm(fd: FormData) {
       // Al revés: el profit target es de la evaluación, no de la fondeada.
       profit_target_pct: conRetiro ? null : numero(fd, "profit_target_pct"),
       profit_target_monto: conRetiro ? null : numero(fd, "profit_target_monto"),
+      retiros_previos: conRetiro ? (numero(fd, "retiros_previos") ?? 0) : 0,
+      // La tilde destildada manda: sin fee, no se guarda monto.
+      fee_activacion:
+        fd.get("tiene_fee") === "si" ? numero(fd, "fee_activacion") : null,
       umbral_saludable_pct,
       umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
       umbral_precaucion_pct,
@@ -165,6 +169,89 @@ export async function actualizarBalance(
 
   revalidatePath("/cuentas");
   return { ok: "Balance actualizado." };
+}
+
+/* ---------- retiros (tabla payouts) ---------- */
+
+/**
+ * Registra un retiro y lo descuenta del balance: la plata que sacaste ya
+ * no está en la cuenta. Las dos cosas van juntas siempre.
+ */
+export async function registrarRetiro(
+  _prev: EstadoForm,
+  fd: FormData
+): Promise<EstadoForm> {
+  const cuenta_id = String(fd.get("cuenta_id") ?? "");
+  const monto = numero(fd, "monto");
+  const fecha = texto(fd, "fecha") ?? new Date().toISOString().slice(0, 10);
+
+  if (!cuenta_id) return { error: "Falta la cuenta." };
+  if (monto === null || monto <= 0) {
+    return { error: "El monto del retiro tiene que ser mayor a 0." };
+  }
+
+  const supabase = createClient();
+
+  const { data: cuenta, error: errorLectura } = await supabase
+    .from("cuentas_fondeo")
+    .select("balance_actual")
+    .eq("id", cuenta_id)
+    .single();
+
+  if (errorLectura || !cuenta) {
+    return { error: "No se encontró la cuenta." };
+  }
+
+  const { error: errorRetiro } = await supabase.from("payouts").insert({
+    cuenta_id,
+    monto,
+    fecha,
+    notas: texto(fd, "notas"),
+  });
+
+  if (errorRetiro) return { error: mensajeDeError(errorRetiro.message) };
+
+  const { error: errorBalance } = await supabase
+    .from("cuentas_fondeo")
+    .update({ balance_actual: cuenta.balance_actual - monto })
+    .eq("id", cuenta_id);
+
+  if (errorBalance) return { error: mensajeDeError(errorBalance.message) };
+
+  revalidatePath("/cuentas");
+  return { ok: "Retiro registrado." };
+}
+
+/** Borra un retiro y le devuelve el monto al balance. */
+export async function eliminarRetiro(id: string, cuenta_id: string) {
+  if (!id || !cuenta_id) return;
+
+  const supabase = createClient();
+
+  const { data: retiro } = await supabase
+    .from("payouts")
+    .select("monto")
+    .eq("id", id)
+    .single();
+
+  if (!retiro) return;
+
+  await supabase.from("payouts").delete().eq("id", id);
+
+  const { data: cuenta } = await supabase
+    .from("cuentas_fondeo")
+    .select("balance_actual")
+    .eq("id", cuenta_id)
+    .single();
+
+  if (cuenta) {
+    await supabase
+      .from("cuentas_fondeo")
+      .update({ balance_actual: cuenta.balance_actual + retiro.monto })
+      .eq("id", cuenta_id);
+  }
+
+  revalidatePath("/cuentas");
 }
 
 /* ---------- errores en castellano ---------- */

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ModalCuenta } from "./modal-cuenta";
+import { ModalRetiros } from "./modal-retiros";
 import { TarjetaCuenta } from "./tarjeta-cuenta";
 import {
   ESTADO_PLURAL,
@@ -11,6 +12,7 @@ import {
   plata,
   sugerirNombre,
   type Cuenta,
+  type Retiro,
   type Tipo,
 } from "@/lib/cuentas";
 
@@ -63,12 +65,20 @@ const FILTROS_TODAS: FiltroEstado[] = [
   { valor: "cerradas", label: "No activas", pasa: (c) => !enJuego(c.estado) },
 ];
 
-export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
+export function CuentasVista({
+  cuentas,
+  retiros,
+}: {
+  cuentas: Cuenta[];
+  /** Retiros ya agrupados por cuenta, para no recorrer todo en cada tarjeta. */
+  retiros: Record<string, Retiro[]>;
+}) {
   const [pestana, setPestana] = useState<Pestana>("todas");
   const [estado, setEstado] = useState<string | null>(null);
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
   const [modal, setModal] = useState<null | { cuenta?: Cuenta }>(null);
+  const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
 
   function cambiarPestana(p: Pestana) {
     setPestana(p);
@@ -204,7 +214,9 @@ export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
               <TarjetaCuenta
                 key={c.id}
                 cuenta={c}
+                retiros={retiros[c.id] ?? []}
                 onEditar={() => setModal({ cuenta: c })}
+                onRetiros={() => setModalRetiros(c)}
               />
             ))}
           </div>
@@ -223,6 +235,14 @@ export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
       >
         + Cuenta
       </button>
+
+      {modalRetiros && (
+        <ModalRetiros
+          cuenta={modalRetiros}
+          retiros={retiros[modalRetiros.id] ?? []}
+          onCerrar={() => setModalRetiros(null)}
+        />
+      )}
 
       {modal && (
         <ModalCuenta

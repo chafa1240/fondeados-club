@@ -1,7 +1,7 @@
 import { EncabezadoSeccion } from "@/components/seccion";
 import { CuentasVista } from "@/components/cuentas/cuentas-vista";
 import { createClient } from "@/lib/supabase/server";
-import type { Cuenta } from "@/lib/cuentas";
+import type { Cuenta, Retiro } from "@/lib/cuentas";
 
 // Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
 export const dynamic = "force-dynamic";
@@ -9,10 +9,19 @@ export const dynamic = "force-dynamic";
 export default async function CuentasPage() {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from("cuentas_fondeo")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: cuentas, error }, { data: payouts }] = await Promise.all([
+    supabase
+      .from("cuentas_fondeo")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    supabase.from("payouts").select("*").order("fecha", { ascending: false }),
+  ]);
+
+  // Los retiros se agrupan una sola vez acá, no en cada tarjeta.
+  const retiros: Record<string, Retiro[]> = {};
+  for (const p of (payouts ?? []) as Retiro[]) {
+    (retiros[p.cuenta_id] ??= []).push(p);
+  }
 
   return (
     <>
@@ -27,7 +36,10 @@ export default async function CuentasPage() {
           <p className="mt-1 text-rose-400/80">{error.message}</p>
         </div>
       ) : (
-        <CuentasVista cuentas={(data ?? []) as Cuenta[]} />
+        <CuentasVista
+          cuentas={(cuentas ?? []) as Cuenta[]}
+          retiros={retiros}
+        />
       )}
     </>
   );

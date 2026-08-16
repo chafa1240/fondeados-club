@@ -22,8 +22,10 @@ import {
   porcentaje,
   salud,
   tieneRetiro,
+  totalRetirado,
   variacion,
   type Cuenta,
+  type Retiro,
 } from "@/lib/cuentas";
 
 /* ---------- Anillo de progreso ---------- */
@@ -142,7 +144,15 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
 
 /* ---------- Menú de la tarjeta ---------- */
 
-function Menu({ cuenta, onEditar }: { cuenta: Cuenta; onEditar: () => void }) {
+function Menu({
+  cuenta,
+  onEditar,
+  onRetiros,
+}: {
+  cuenta: Cuenta;
+  onEditar: () => void;
+  onRetiros: () => void;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [trabajando, empezar] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -183,6 +193,18 @@ function Menu({ cuenta, onEditar }: { cuenta: Cuenta; onEditar: () => void }) {
           >
             Editar
           </button>
+
+          {tieneRetiro(cuenta.tipo) && (
+            <button
+              className={item}
+              onClick={() => {
+                setAbierto(false);
+                onRetiros();
+              }}
+            >
+              Retiros
+            </button>
+          )}
 
           <p className="px-3 pb-1 pt-2 text-xs uppercase tracking-wide text-neutral-600">
             Cambiar estado
@@ -261,15 +283,20 @@ function Dato({ label, valor }: { label: string; valor: string }) {
 
 export function TarjetaCuenta({
   cuenta,
+  retiros,
   onEditar,
+  onRetiros,
 }: {
   cuenta: Cuenta;
+  retiros: Retiro[];
   onEditar: () => void;
+  onRetiros: () => void;
 }) {
   const chip = chipDeCuenta(cuenta);
   const meta = anillo(cuenta);
   const esFondeada = tieneRetiro(cuenta.tipo);
   const piso = pisoDrawdown(cuenta);
+  const retirado = totalRetirado(cuenta, retiros);
   const c = colchon(cuenta);
   const s = salud(cuenta);
 
@@ -292,7 +319,7 @@ export function TarjetaCuenta({
             <span className={`h-1.5 w-1.5 rounded-full ${chip.punto}`} />
             {chip.label}
           </span>
-          <Menu cuenta={cuenta} onEditar={onEditar} />
+          <Menu cuenta={cuenta} onEditar={onEditar} onRetiros={onRetiros} />
         </div>
       </div>
 
@@ -388,6 +415,20 @@ export function TarjetaCuenta({
         )}
         <Dato label="No bajar de" valor={piso != null ? plata(piso) : "—"} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
+        {esFondeada && (
+          <Dato
+            label="Retirado"
+            valor={retirado > 0 ? plata(retirado) : "Todavía nada"}
+          />
+        )}
+        <Dato
+          label="Fee de activación"
+          valor={
+            cuenta.fee_activacion === null
+              ? "No tuvo"
+              : plata(cuenta.fee_activacion, 2)
+          }
+        />
       </div>
 
       {cuenta.notas && (

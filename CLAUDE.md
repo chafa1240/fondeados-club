@@ -216,6 +216,20 @@ solo via trigger.
   se guardan**: se calculan con el colchón que queda hasta el drawdown
   (`salud()` en `src/lib/cuentas.ts`).
 
+**Actualizado por `supabase/004_retiros_y_fee.sql` (2026-08-16):**
+- `retiros_previos` (default 0): lo ya retirado antes de usar la app. Los
+  retiros nuevos van uno por uno a la tabla `payouts`; el total que se
+  muestra es la suma de ambos (`totalRetirado()` en `src/lib/cuentas.ts`).
+- `fee_activacion`: **NULL = no tuvo fee** (en el formulario se elige con
+  ✓/✕; con ✕ el campo queda deshabilitado). Ojo: hoy vive en la cuenta y
+  no en `gastos`. Cuando se haga el Paso 5 hay que decidir si el Funding
+  Manager lo lee de acá o si se crea el gasto correspondiente.
+
+**Retiros**: se registran desde el menú ⋯ de cada fondeada. Insertan una
+fila en `payouts` y **descuentan el monto del balance** en la misma
+acción; borrar un retiro se lo devuelve. Están en `registrarRetiro()` y
+`eliminarRetiro()` de `src/app/(app)/cuentas/actions.ts`.
+
 ### gastos
 Una fila por gasto. Campos: `cuenta_id` (**nullable** — permite gastos
 generales no atados a una cuenta, ej. software/suscripciones),
