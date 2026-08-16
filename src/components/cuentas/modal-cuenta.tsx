@@ -19,7 +19,17 @@ import {
 } from "@/lib/cuentas";
 
 const INPUT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900 disabled:text-neutral-600";
+
+/** Aviso para los campos que no se pueden calcular sin el tamaño de cuenta. */
+function FaltaTamano() {
+  return (
+    <p className="-mt-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-500/90">
+      Cargá primero el <strong>tamaño de cuenta</strong>: estos valores se
+      calculan sobre él.
+    </p>
+  );
+}
 
 function Campo({
   label,
@@ -128,6 +138,10 @@ export function ModalCuenta({
   const [tipo, setTipo] = useState<Tipo>(cuenta?.tipo ?? "fondeada");
   const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
   const tamanoNum = aNumero(tamano) || 0;
+
+  // Drawdown y umbrales se calculan sobre el tamaño de cuenta: sin ese
+  // número no hay nada que calcular, así que se bloquean.
+  const sinTamano = tamanoNum <= 0;
 
   const dd = useParPctMonto(
     texto(cuenta?.drawdown_maximo_pct),
@@ -268,6 +282,7 @@ export function ModalCuenta({
               <input
                 name="drawdown_maximo_pct"
                 inputMode="decimal"
+                disabled={sinTamano}
                 placeholder="4"
                 value={dd.pct}
                 onChange={(e) => dd.desdePct(e.target.value, tamanoNum)}
@@ -279,6 +294,7 @@ export function ModalCuenta({
               <input
                 name="drawdown_maximo_monto"
                 inputMode="decimal"
+                disabled={sinTamano}
                 placeholder="2000"
                 value={dd.monto}
                 onChange={(e) => dd.desdeMonto(e.target.value, tamanoNum)}
@@ -306,6 +322,8 @@ export function ModalCuenta({
               />
             </Campo>
           </div>
+
+          {sinTamano && <FaltaTamano />}
 
           {/* Objetivo de retiro */}
           <Titulo>Objetivo de retiro</Titulo>
@@ -340,11 +358,13 @@ export function ModalCuenta({
             Según cuánto colchón te quede hasta el drawdown máximo. El estado
             de la cuenta se pone solo con estos valores.
           </p>
+          {sinTamano && <FaltaTamano />}
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo label="Saludable desde (%)">
               <input
                 name="umbral_saludable_pct"
                 inputMode="decimal"
+                disabled={sinTamano}
                 value={saludable.pct}
                 onChange={(e) => saludable.desdePct(e.target.value, tamanoNum)}
                 className={INPUT}
@@ -354,6 +374,7 @@ export function ModalCuenta({
               <input
                 name="umbral_saludable_monto"
                 inputMode="decimal"
+                disabled={sinTamano}
                 value={saludable.monto}
                 onChange={(e) => saludable.desdeMonto(e.target.value, tamanoNum)}
                 className={INPUT}
@@ -363,6 +384,7 @@ export function ModalCuenta({
               <input
                 name="umbral_precaucion_pct"
                 inputMode="decimal"
+                disabled={sinTamano}
                 value={precaucion.pct}
                 onChange={(e) => precaucion.desdePct(e.target.value, tamanoNum)}
                 className={INPUT}
@@ -372,6 +394,7 @@ export function ModalCuenta({
               <input
                 name="umbral_precaucion_monto"
                 inputMode="decimal"
+                disabled={sinTamano}
                 value={precaucion.monto}
                 onChange={(e) =>
                   precaucion.desdeMonto(e.target.value, tamanoNum)
