@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  balanceAlPasar,
   CANTIDAD_MAXIMA_LOTE,
   ESTADOS,
   estadoValido,
@@ -27,7 +28,9 @@ function texto(fd: FormData, campo: string) {
 }
 
 function numero(fd: FormData, campo: string) {
-  const v = String(fd.get(campo) ?? "").trim().replace(",", ".");
+  const v = String(fd.get(campo) ?? "")
+    .trim()
+    .replace(",", ".");
   if (v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -90,52 +93,59 @@ function datosDesdeForm(fd: FormData) {
   // venía de ser fondeada).
   const conRetiro = tieneRetiro(tipo);
 
-  return {
-    datos: {
-      tipo,
-      nombre,
-      firm,
-      tamano_cuenta,
-      fecha_inicio,
-      estado,
-      drawdown_maximo_pct: numero(fd, "drawdown_maximo_pct"),
-      drawdown_maximo_monto: numero(fd, "drawdown_maximo_monto"),
-      profit_split: conRetiro ? numero(fd, "profit_split") : null,
-      objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
-      balance_objetivo: conRetiro ? balance_objetivo : null,
-      // Al revés: el profit target es de la evaluación, no de la fondeada.
-      profit_target_pct: conRetiro ? null : numero(fd, "profit_target_pct"),
-      profit_target_monto: conRetiro ? null : numero(fd, "profit_target_monto"),
-      retiros_previos: conRetiro ? (numero(fd, "retiros_previos") ?? 0) : 0,
-      // El fee de activación es de la fondeada; en la evaluación se paga
-      // el precio de la evaluación, que va más abajo.
-      // La tilde destildada manda: sin fee, no se guarda monto.
-      fee_activacion:
-        conRetiro && fd.get("tiene_fee") === "si"
-          ? numero(fd, "fee_activacion")
-          : null,
-      // La regla de consistencia aplica a los dos tipos.
-      regla_consistencia: numero(fd, "regla_consistencia"),
-      // El resto es propio de la evaluación.
-      tipo_drawdown: conRetiro ? null : tipoDrawdown(fd),
-      precio: conRetiro ? null : numero(fd, "precio"),
-      cantidad_contratos: conRetiro ? null : entero(fd, "cantidad_contratos"),
-      umbral_saludable_pct,
-      umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
-      umbral_precaucion_pct,
-      umbral_precaucion_monto: numero(fd, "umbral_precaucion_monto"),
-      // Si no cargó balance todavía, arranca en el balance base.
-      balance_actual: balance === null ? tamano_cuenta : balance,
-      notas: texto(fd, "notas"),
-    },
+  const datos = {
+    tipo,
+    nombre,
+    firm,
+    tamano_cuenta,
+    fecha_inicio,
+    estado,
+    drawdown_maximo_pct: numero(fd, "drawdown_maximo_pct"),
+    drawdown_maximo_monto: numero(fd, "drawdown_maximo_monto"),
+    profit_split: conRetiro ? numero(fd, "profit_split") : null,
+    objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
+    balance_objetivo: conRetiro ? balance_objetivo : null,
+    // Al revés: el profit target es de la evaluación, no de la fondeada.
+    profit_target_pct: conRetiro ? null : numero(fd, "profit_target_pct"),
+    profit_target_monto: conRetiro ? null : numero(fd, "profit_target_monto"),
+    retiros_previos: conRetiro ? (numero(fd, "retiros_previos") ?? 0) : 0,
+    // El fee de activación es de la fondeada; en la evaluación se paga
+    // el precio de la evaluación, que va más abajo.
+    // La tilde destildada manda: sin fee, no se guarda monto.
+    fee_activacion:
+      conRetiro && fd.get("tiene_fee") === "si"
+        ? numero(fd, "fee_activacion")
+        : null,
+    // La regla de consistencia aplica a los dos tipos.
+    regla_consistencia: numero(fd, "regla_consistencia"),
+    // El resto es propio de la evaluación.
+    tipo_drawdown: conRetiro ? null : tipoDrawdown(fd),
+    precio: conRetiro ? null : numero(fd, "precio"),
+    cantidad_contratos: conRetiro ? null : entero(fd, "cantidad_contratos"),
+    umbral_saludable_pct,
+    umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
+    umbral_precaucion_pct,
+    umbral_precaucion_monto: numero(fd, "umbral_precaucion_monto"),
+    // Si no cargó balance todavía, arranca en el balance base.
+    balance_actual: balance === null ? tamano_cuenta : balance,
+    notas: texto(fd, "notas"),
   };
+
+  // Misma regla que en el menú ⋯: una evaluación marcada como pasada llega
+  // al profit target por definición.
+  if (estado === "passed") {
+    const alPasar = balanceAlPasar(datos);
+    if (alPasar !== null) datos.balance_actual = alPasar;
+  }
+
+  return { datos };
 }
 
 /* ---------- alta / edición ---------- */
 
 export async function guardarCuenta(
   _prev: EstadoForm,
-  fd: FormData
+  fd: FormData,
 ): Promise<EstadoForm> {
   const parsed = datosDesdeForm(fd);
   if ("error" in parsed) return { error: parsed.error };
@@ -173,7 +183,7 @@ export async function guardarCuenta(
   const nombres = nombresParaLote(
     parsed.datos.nombre,
     cantidad,
-    (existentes ?? []).map((c) => c.nombre)
+    (existentes ?? []).map((c) => c.nombre),
   );
 
   const filas = nombres.map((nombre) => ({ ...parsed.datos, nombre }));
@@ -199,7 +209,25 @@ export async function cambiarEstado(id: string, estado: Estado) {
   if (!id || !ESTADOS.includes(estado)) return;
 
   const supabase = createClient();
-  await supabase.from("cuentas_fondeo").update({ estado }).eq("id", id);
+
+  // Al marcar una evaluación como pasada, el balance salta al objetivo:
+  // si la aprobaste, llegaste al profit target sí o sí.
+  const cambios: { estado: Estado; balance_actual?: number } = { estado };
+
+  if (estado === "passed") {
+    const { data: cuenta } = await supabase
+      .from("cuentas_fondeo")
+      .select("tipo, tamano_cuenta, balance_actual, profit_target_monto")
+      .eq("id", id)
+      .single();
+
+    if (cuenta) {
+      const balance = balanceAlPasar(cuenta);
+      if (balance !== null) cambios.balance_actual = balance;
+    }
+  }
+
+  await supabase.from("cuentas_fondeo").update(cambios).eq("id", id);
   revalidatePath("/cuentas");
 }
 
@@ -213,7 +241,7 @@ export async function eliminarCuenta(id: string) {
 
 export async function actualizarBalance(
   _prev: EstadoForm,
-  fd: FormData
+  fd: FormData,
 ): Promise<EstadoForm> {
   const id = String(fd.get("id") ?? "");
   const balance = numero(fd, "balance_actual");
@@ -240,7 +268,7 @@ export async function actualizarBalance(
  */
 export async function registrarRetiro(
   _prev: EstadoForm,
-  fd: FormData
+  fd: FormData,
 ): Promise<EstadoForm> {
   const cuenta_id = String(fd.get("cuenta_id") ?? "");
   const monto = numero(fd, "monto");

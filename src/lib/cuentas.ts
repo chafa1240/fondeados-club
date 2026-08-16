@@ -368,6 +368,47 @@ export const PREFIJO_NOMBRE: Record<Tipo, string> = {
 };
 
 /**
+ * Cómo nombrar un conjunto de cuentas en el pie de la lista.
+ * Si son todas del mismo tipo se las llama por su nombre ("3 evaluaciones",
+ * "2 fondeadas"); si están mezcladas, el genérico "5 cuentas".
+ */
+export function etiquetaCantidad(cuentas: { tipo: Tipo }[]) {
+  const n = cuentas.length;
+  const tipos = new Set(cuentas.map((c) => c.tipo));
+  const unico = tipos.size === 1 ? [...tipos][0] : null;
+
+  // Fondeada y Evaluación son los nombres de los tipos (igual que en
+  // TIPO_INFO), por eso van con mayúscula; "cuentas" es genérico y no.
+  if (unico === "fondeada") return `${n} Fondeada${n === 1 ? "" : "s"}`;
+  if (unico === "challenge") {
+    return n === 1 ? "1 Evaluación" : `${n} Evaluaciones`;
+  }
+  return `${n} cuenta${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Balance que le corresponde a una evaluación recién pasada: el balance
+ * base más el profit target, que es justo lo que hay que ganar para
+ * aprobarla.
+ *
+ * Devuelve null si no aplica (no es evaluación, no hay target cargado) o
+ * si el balance ya está por encima: si la pasaste con más ganancia que el
+ * target, ese número real vale más que el teórico y no se pisa.
+ */
+export function balanceAlPasar(cuenta: {
+  tipo: Tipo;
+  tamano_cuenta: number;
+  balance_actual: number;
+  profit_target_monto: number | null;
+}): number | null {
+  if (tieneRetiro(cuenta.tipo)) return null;
+  if (cuenta.profit_target_monto === null) return null;
+
+  const objetivo = cuenta.tamano_cuenta + cuenta.profit_target_monto;
+  return objetivo > cuenta.balance_actual ? objetivo : null;
+}
+
+/**
  * Sugiere el próximo nombre libre de la serie del tipo de cuenta:
  * PA1, PA2… en fondeadas; Evaluación 1, Evaluación 2… en evaluaciones.
  *

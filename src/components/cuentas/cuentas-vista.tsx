@@ -11,6 +11,7 @@ import {
   SALUD_INFO,
   TIPO_INFO,
   enJuego,
+  etiquetaCantidad,
   nombresParaLote,
   plata,
   salud,
@@ -149,7 +150,10 @@ export function CuentasVista({
     [cuentas, pestana, estados, saludes, verArchivadas, firm]
   );
 
-  const capitalGestionado = visibles.reduce((a, c) => a + c.tamano_cuenta, 0);
+  // El pie resume solo lo que sigue en juego: una cuenta pasada o quemada
+  // ya no es capital que estés gestionando.
+  const enCurso = visibles.filter((c) => enJuego(c.estado));
+  const capitalGestionado = enCurso.reduce((a, c) => a + c.tamano_cuenta, 0);
 
   return (
     <>
@@ -272,8 +276,14 @@ export function CuentasVista({
             ))}
           </div>
           <p className="mt-4 text-xs text-neutral-600">
-            {visibles.length} cuenta{visibles.length === 1 ? "" : "s"} ·{" "}
-            {plata(capitalGestionado)} de capital gestionado
+            {enCurso.length > 0 ? (
+              <>
+                {etiquetaCantidad(enCurso)} en curso · {plata(capitalGestionado)}{" "}
+                de capital gestionado
+              </>
+            ) : (
+              `${etiquetaCantidad(visibles)}, ninguna en curso`
+            )}
           </p>
         </>
       )}
