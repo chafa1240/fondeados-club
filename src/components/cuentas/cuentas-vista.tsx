@@ -11,6 +11,7 @@ import {
   SALUD_INFO,
   TIPO_INFO,
   enJuego,
+  nombresParaLote,
   plata,
   salud,
   sugerirNombre,
@@ -84,7 +85,12 @@ export function CuentasVista({
   const [saludes, setSaludes] = useState<Salud[]>([]);
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
-  const [modal, setModal] = useState<null | { cuenta?: Cuenta }>(null);
+  // `duplicar` usa la cuenta como plantilla y crea copias nuevas en vez de
+  // editarla.
+  const [modal, setModal] = useState<null | {
+    cuenta?: Cuenta;
+    duplicar?: boolean;
+  }>(null);
   const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
 
   function cambiarPestana(p: Pestana) {
@@ -260,6 +266,7 @@ export function CuentasVista({
                 cuenta={c}
                 retiros={retiros[c.id] ?? []}
                 onEditar={() => setModal({ cuenta: c })}
+                onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                 onRetiros={() => setModalRetiros(c)}
               />
             ))}
@@ -291,7 +298,25 @@ export function CuentasVista({
       {modal && (
         <ModalCuenta
           cuenta={modal.cuenta}
-          nombreSugerido={sugerirNombre(cuentas)}
+          duplicar={modal.duplicar}
+          nombreSugerido={
+            // Al duplicar, el nombre sigue la serie de la cuenta original
+            // ("Apex 50k" → "Apex 50k 2") sin importar el tipo; si no, cada
+            // tipo tiene su propia serie (PA1… / Evaluación 1…).
+            modal.duplicar && modal.cuenta
+              ? (() => {
+                  const n = nombresParaLote(
+                    modal.cuenta.nombre,
+                    1,
+                    cuentas.map((c) => c.nombre)
+                  )[0];
+                  return { fondeada: n, challenge: n };
+                })()
+              : {
+                  fondeada: sugerirNombre(cuentas, "fondeada"),
+                  challenge: sugerirNombre(cuentas, "challenge"),
+                }
+          }
           onCerrar={() => setModal(null)}
         />
       )}

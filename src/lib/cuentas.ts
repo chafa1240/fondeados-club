@@ -98,9 +98,9 @@ export const ESTADO_INFO: Record<Estado, Chip> = {
     punto: "bg-sky-400",
   },
   passed: {
-    label: "Pasadas",
-    chip: "border-violet-500/30 bg-violet-500/10 text-violet-400",
-    punto: "bg-violet-400",
+    label: "Pasada",
+    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    punto: "bg-emerald-400",
   },
   quemada: {
     label: "Quemada",
@@ -327,7 +327,7 @@ export function chipDeCuenta(cuenta: Cuenta): Chip {
 export function anillo(cuenta: Cuenta): {
   pct: number;
   etiqueta: string;
-  meta: number;
+  meta: number | null;
   falta: number;
 } | null {
   const meta = tieneRetiro(cuenta.tipo)
@@ -336,6 +336,15 @@ export function anillo(cuenta: Cuenta): {
       ? null
       : cuenta.tamano_cuenta + cuenta.profit_target_monto;
 
+  const etiqueta = tieneRetiro(cuenta.tipo) ? "al retiro" : "al target";
+
+  // Una evaluación marcada como pasada ya cumplió el objetivo: el anillo
+  // va al 100% aunque el balance cargado todavía no llegue (o aunque ni
+  // siquiera haya profit target cargado).
+  if (cuenta.estado === "passed") {
+    return { pct: 100, etiqueta, meta, falta: 0 };
+  }
+
   if (meta === null || meta <= cuenta.tamano_cuenta) return null;
 
   const recorrido = cuenta.balance_actual - cuenta.tamano_cuenta;
@@ -343,18 +352,96 @@ export function anillo(cuenta: Cuenta): {
 
   return {
     pct: Math.max(0, Math.min(100, (recorrido / total) * 100)),
-    etiqueta: tieneRetiro(cuenta.tipo) ? "al retiro" : "al target",
+    etiqueta,
     meta,
     falta: Math.max(0, meta - cuenta.balance_actual),
   };
 }
 
-/** Sugiere el próximo nombre libre de la serie: PA1, PA2, PA3… */
-export function sugerirNombre(cuentas: { nombre: string }[]) {
+/**
+ * Prefijo con el que se numeran las cuentas nuevas de cada tipo:
+ * las fondeadas van PA1, PA2… y las evaluaciones Evaluación 1, 2…
+ */
+export const PREFIJO_NOMBRE: Record<Tipo, string> = {
+  fondeada: "PA",
+  challenge: "Evaluación",
+};
+
+/**
+ * Sugiere el próximo nombre libre de la serie del tipo de cuenta:
+ * PA1, PA2… en fondeadas; Evaluación 1, Evaluación 2… en evaluaciones.
+ *
+ * Cada tipo lleva su propia numeración, así que tener PA3 no empuja la
+ * serie de las evaluaciones.
+ */
+export function sugerirNombre(cuentas: { nombre: string }[], tipo: Tipo) {
+  const prefijo = PREFIJO_NOMBRE[tipo];
+  // Acepta "PA3", "PA 3", "Evaluación 3" — con o sin espacio de por medio.
+  const patron = new RegExp(`^${prefijo}\\s?(\\d+)$`, "i");
+
   const usados = cuentas
-    .map((c) => /^PA\s?(\d+)$/i.exec(c.nombre.trim()))
+    .map((c) => patron.exec(c.nombre.trim()))
     .filter(Boolean)
     .map((m) => Number(m![1]));
+
   const proximo = usados.length ? Math.max(...usados) + 1 : 1;
-  return `PA${proximo}`;
+  // "PA1" va pegado; "Evaluación 1" con espacio, que se lee mejor.
+  const separador = prefijo === "PA" ? "" : " ";
+  return `${prefijo}${separador}${proximo}`;
+}
+
+/* ---------- Alta en lote (packs de cuentas) ---------- */
+
+/**
+ * Tope de cuentas que se pueden crear de una vez. Es para evitar un error
+ * de tipeo que cargue 500 cuentas, no una limitación real del negocio.
+ */
+export const CANTIDAD_MAXIMA_LOTE = 20;
+
+/**
+ * Nombres para un alta en lote (ej. el pack de 5 evaluaciones de Apex).
+ *
+ * A partir del nombre que escribió el usuario devuelve `cantidad` nombres
+ * libres, numerados de forma correlativa y sin pisar los que ya existen:
+ *
+ *   "PA3" + 3 cuentas  →  PA3, PA4, PA5
+ *   "Apex" + 2 cuentas →  Apex, Apex 2
+ *
+ * Si el nombre base ya está usado, arranca directamente por el siguiente
+ * libre. La comparación no distingue mayúsculas.
+ */
+export function nombresParaLote(
+  base: string,
+  cantidad: number,
+  usados: string[]
+): string[] {
+  const total = Math.max(1, Math.min(Math.round(cantidad), CANTIDAD_MAXIMA_LOTE));
+  const ocupados = new Set(usados.map((u) => u.trim().toLowerCase()));
+  const limpio = base.trim();
+  const nombres: string[] = [];
+
+  const libre = (n: string) => !ocupados.has(n.toLowerCase());
+  const tomar = (n: string) => {
+    nombres.push(n);
+    ocupados.add(n.toLowerCase());
+  };
+
+  // "PA3" se parte en prefijo "PA" + número 3; "Apex" no tiene número, así
+  // que la serie sigue por "Apex 2".
+  const m = /^(.*?)(\d+)$/.exec(limpio);
+  const prefijo = m ? m[1] : `${limpio} `;
+  let numero = m ? Number(m[2]) : 2;
+
+  if (libre(limpio)) {
+    tomar(limpio);
+    if (m) numero += 1;
+  }
+
+  while (nombres.length < total) {
+    const candidato = `${prefijo}${numero}`;
+    if (libre(candidato)) tomar(candidato);
+    numero += 1;
+  }
+
+  return nombres;
 }

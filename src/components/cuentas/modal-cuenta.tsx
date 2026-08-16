@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
 import {
+  CANTIDAD_MAXIMA_LOTE,
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
@@ -60,7 +61,7 @@ function Titulo({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Guardar() {
+function Guardar({ texto }: { texto: string }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -68,7 +69,7 @@ function Guardar() {
       disabled={pending}
       className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {pending ? "Guardando…" : "Guardar"}
+      {pending ? "Guardando…" : texto}
     </button>
   );
 }
@@ -126,11 +127,18 @@ function texto(n: number | null | undefined) {
 
 export function ModalCuenta({
   cuenta,
+  duplicar = false,
   nombreSugerido,
   onCerrar,
 }: {
   cuenta?: Cuenta;
-  nombreSugerido: string;
+  /**
+   * Duplicar usa los datos de `cuenta` como plantilla, pero crea filas
+   * nuevas: no se manda el id, así que la action inserta en vez de editar.
+   */
+  duplicar?: boolean;
+  /** Nombre propuesto para cada tipo: PA3 / Evaluación 2. */
+  nombreSugerido: Record<Tipo, string>;
   onCerrar: () => void;
 }) {
   const [estadoForm, formAction] = useFormState<EstadoForm, FormData>(
@@ -138,7 +146,26 @@ export function ModalCuenta({
     {}
   );
 
+  // Solo es edición cuando hay cuenta y no se está duplicando.
+  const esEdicion = !!cuenta && !duplicar;
+  // Cargar varias iguales de una sola vez tiene sentido al crear, no al editar.
+  const [cantidad, setCantidad] = useState("1");
+  const cantidadNum = Math.min(Number(cantidad) || 1, CANTIDAD_MAXIMA_LOTE);
+
   const [tipo, setTipo] = useState<Tipo>(cuenta?.tipo ?? "fondeada");
+
+  // El nombre es controlado para poder cambiarlo solo al cambiar de tipo
+  // (PA3 ↔ Evaluación 2), pero sin pisar lo que el usuario haya escrito.
+  const [nombre, setNombre] = useState(
+    esEdicion ? cuenta!.nombre : nombreSugerido[cuenta?.tipo ?? "fondeada"]
+  );
+
+  function cambiarTipo(nuevo: Tipo) {
+    if (!esEdicion && nombre.trim() === nombreSugerido[tipo].trim()) {
+      setNombre(nombreSugerido[nuevo]);
+    }
+    setTipo(nuevo);
+  }
   const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
   const tamanoNum = aNumero(tamano) || 0;
 
@@ -179,8 +206,10 @@ export function ModalCuenta({
 
   // Archivar/desarchivar se hace desde el menú ⋯, pero si la cuenta ya
   // está archivada hay que poder mostrarlo acá sin cambiárselo de prepo.
+  // Al duplicar, la copia nace en el estado normal del tipo: no tiene
+  // sentido crear una cuenta nueva ya archivada.
   const estadosPosibles: Estado[] =
-    cuenta?.estado === "archivada"
+    esEdicion && cuenta!.estado === "archivada"
       ? [...ESTADOS_POR_TIPO[tipo], "archivada"]
       : ESTADOS_POR_TIPO[tipo];
 
@@ -208,7 +237,11 @@ export function ModalCuenta({
       <div className="my-8 w-full max-w-2xl rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold">
-            {cuenta ? `Editar ${cuenta.nombre}` : "Nueva cuenta"}
+            {esEdicion
+              ? `Editar ${cuenta!.nombre}`
+              : duplicar
+                ? `Duplicar ${cuenta!.nombre}`
+                : "Nueva cuenta"}
           </h2>
           <button
             onClick={onCerrar}
@@ -220,7 +253,7 @@ export function ModalCuenta({
         </div>
 
         <form action={formAction} className="space-y-4">
-          {cuenta && <input type="hidden" name="id" value={cuenta.id} />}
+          {esEdicion && <input type="hidden" name="id" value={cuenta!.id} />}
           <input type="hidden" name="tipo" value={tipo} />
 
           {/* Tipo de cuenta */}
@@ -229,7 +262,7 @@ export function ModalCuenta({
               <button
                 key={t}
                 type="button"
-                onClick={() => setTipo(t)}
+                onClick={() => cambiarTipo(t)}
                 className={`flex-1 rounded-lg border px-4 py-2 text-sm transition ${
                   tipo === t
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
@@ -241,12 +274,61 @@ export function ModalCuenta({
             ))}
           </div>
 
+          {/* Alta en lote: los packs de cuentas (ej. 5 de Apex) se cargan
+              una sola vez y la app crea las copias numeradas. */}
+          {!esEdicion && (
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-3">
+              <p className="mb-2 text-sm text-neutral-300">
+                ¿Cuántas cuentas iguales?
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {["1", "2", "3", "5", "10"].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCantidad(n)}
+                    className={`h-9 w-10 rounded-lg border text-sm transition ${
+                      cantidad === n
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                        : "border-neutral-800 text-neutral-400 hover:border-neutral-700"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <input
+                  name="cantidad"
+                  inputMode="numeric"
+                  aria-label="Cantidad de cuentas"
+                  value={cantidad}
+                  onChange={(e) =>
+                    setCantidad(e.target.value.replace(/[^\d]/g, ""))
+                  }
+                  className={`${INPUT} h-9 w-20`}
+                />
+              </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                {cantidadNum > 1
+                  ? `Se crean ${cantidadNum} cuentas idénticas, numeradas a partir del nombre de abajo. Después las editás por separado.`
+                  : `Poné más de 1 si compraste un pack. Máximo ${CANTIDAD_MAXIMA_LOTE}.`}
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <Campo label="Nombre">
+            <Campo
+              label={cantidadNum > 1 ? "Nombre base" : "Nombre"}
+              ayuda={
+                cantidadNum > 1
+                  ? "Las demás siguen la numeración desde acá"
+                  : undefined
+              }
+            >
               <input
                 name="nombre"
                 required
-                defaultValue={cuenta?.nombre ?? nombreSugerido}
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
                 className={INPUT}
               />
             </Campo>
@@ -626,7 +708,9 @@ export function ModalCuenta({
             >
               Cancelar
             </button>
-            <Guardar />
+            <Guardar
+              texto={cantidadNum > 1 ? `Crear ${cantidadNum} cuentas` : "Guardar"}
+            />
           </div>
         </form>
       </div>

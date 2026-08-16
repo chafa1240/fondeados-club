@@ -30,13 +30,35 @@ import {
 
 /* ---------- Anillo de progreso ---------- */
 
+/** En cuántos tramos se corta el aro (cada tramo son 10%). */
+const TRAMOS = 10;
+
 function Anillo({ pct }: { pct: number }) {
   const r = 26;
   const largo = 2 * Math.PI * r;
 
+  // Cortes que atraviesan el propio aro y lo parten en tramos, para que se
+  // lea como una escala y no como un dibujo liso. Van del color de la
+  // tarjeta, así "recortan" el anillo en vez de pintarse encima.
+  const cortes = Array.from({ length: TRAMOS }, (_, i) => {
+    const angulo = (i / TRAMOS) * 2 * Math.PI;
+    const cos = Math.cos(angulo);
+    const sen = Math.sin(angulo);
+    // El aro va de radio 23 a 29 (r 26 con 6 de grosor): se corta un poco
+    // más para que el tajo se vea limpio en los dos bordes.
+    return {
+      i,
+      x1: 32 + cos * 22.4,
+      y1: 32 + sen * 22.4,
+      x2: 32 + cos * 29.6,
+      y2: 32 + sen * 29.6,
+    };
+  });
+
   return (
     <div className="relative h-24 w-24 shrink-0">
       <svg viewBox="0 0 64 64" className="h-24 w-24 -rotate-90">
+        {/* Aro de fondo */}
         <circle
           cx="32"
           cy="32"
@@ -45,17 +67,31 @@ function Anillo({ pct }: { pct: number }) {
           strokeWidth="6"
           className="stroke-neutral-800"
         />
+
+        {/* Progreso */}
         <circle
           cx="32"
           cy="32"
           r={r}
           fill="none"
           strokeWidth="6"
-          strokeLinecap="round"
           strokeDasharray={largo}
           strokeDashoffset={largo * (1 - pct / 100)}
           className={pct >= 100 ? "stroke-emerald-400" : "stroke-emerald-500/80"}
         />
+
+        {/* Cortes: van último para partir tanto el fondo como el progreso */}
+        {cortes.map((c) => (
+          <line
+            key={c.i}
+            x1={c.x1}
+            y1={c.y1}
+            x2={c.x2}
+            y2={c.y2}
+            strokeWidth="1.4"
+            className="stroke-neutral-900"
+          />
+        ))}
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-base font-semibold">
         {Math.round(pct)}%
@@ -146,10 +182,12 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
 function Menu({
   cuenta,
   onEditar,
+  onDuplicar,
   onRetiros,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
+  onDuplicar: () => void;
   onRetiros: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -193,6 +231,18 @@ function Menu({
             }}
           >
             Editar
+          </button>
+
+          {/* Duplicar: abre el mismo modal con todo precargado y el campo
+              de cantidad, para clonar la cuenta una o varias veces. */}
+          <button
+            className={item}
+            onClick={() => {
+              setAbierto(false);
+              onDuplicar();
+            }}
+          >
+            Duplicar…
           </button>
 
           {tieneRetiro(cuenta.tipo) && (
@@ -331,11 +381,13 @@ export function TarjetaCuenta({
   cuenta,
   retiros,
   onEditar,
+  onDuplicar,
   onRetiros,
 }: {
   cuenta: Cuenta;
   retiros: Retiro[];
   onEditar: () => void;
+  onDuplicar: () => void;
   onRetiros: () => void;
 }) {
   const [dorso, setDorso] = useState(false);
@@ -379,7 +431,12 @@ export function TarjetaCuenta({
             <span className={`h-1.5 w-1.5 rounded-full ${chip.punto}`} />
             {chip.label}
           </span>
-          <Menu cuenta={cuenta} onEditar={onEditar} onRetiros={onRetiros} />
+          <Menu
+            cuenta={cuenta}
+            onEditar={onEditar}
+            onDuplicar={onDuplicar}
+            onRetiros={onRetiros}
+          />
         </div>
       </div>
 

@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  CANTIDAD_MAXIMA_LOTE,
   ESTADOS,
   estadoValido,
+  nombresParaLote,
   tieneRetiro,
   TIPOS,
   TIPOS_DRAWDOWN,
@@ -141,14 +143,49 @@ export async function guardarCuenta(
   const supabase = createClient();
   const id = texto(fd, "id");
 
-  const { error } = id
-    ? await supabase.from("cuentas_fondeo").update(parsed.datos).eq("id", id)
-    : await supabase.from("cuentas_fondeo").insert(parsed.datos);
+  // Editar: siempre una sola cuenta, la cantidad no aplica.
+  if (id) {
+    const { error } = await supabase
+      .from("cuentas_fondeo")
+      .update(parsed.datos)
+      .eq("id", id);
+
+    if (error) return { error: mensajeDeError(error.message) };
+
+    revalidatePath("/cuentas");
+    return { ok: "Cuenta actualizada." };
+  }
+
+  // Alta: puede ser una o un pack de cuentas iguales (ej. las 5 de Apex).
+  const cantidad = entero(fd, "cantidad") ?? 1;
+
+  if (cantidad < 1 || cantidad > CANTIDAD_MAXIMA_LOTE) {
+    return {
+      error: `La cantidad tiene que estar entre 1 y ${CANTIDAD_MAXIMA_LOTE}.`,
+    };
+  }
+
+  // Los nombres se resuelven contra los que ya existen para no repetir.
+  const { data: existentes } = await supabase
+    .from("cuentas_fondeo")
+    .select("nombre");
+
+  const nombres = nombresParaLote(
+    parsed.datos.nombre,
+    cantidad,
+    (existentes ?? []).map((c) => c.nombre)
+  );
+
+  const filas = nombres.map((nombre) => ({ ...parsed.datos, nombre }));
+
+  const { error } = await supabase.from("cuentas_fondeo").insert(filas);
 
   if (error) return { error: mensajeDeError(error.message) };
 
   revalidatePath("/cuentas");
-  return { ok: id ? "Cuenta actualizada." : "Cuenta creada." };
+  return {
+    ok: cantidad === 1 ? "Cuenta creada." : `${cantidad} cuentas creadas.`,
+  };
 }
 
 /* ---------- acciones rápidas desde la tarjeta ---------- */
