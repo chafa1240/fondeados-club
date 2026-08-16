@@ -35,8 +35,8 @@ function Anillo({ pct }: { pct: number }) {
   const largo = 2 * Math.PI * r;
 
   return (
-    <div className="relative h-20 w-20 shrink-0">
-      <svg viewBox="0 0 64 64" className="h-20 w-20 -rotate-90">
+    <div className="relative h-24 w-24 shrink-0">
+      <svg viewBox="0 0 64 64" className="h-24 w-24 -rotate-90">
         <circle
           cx="32"
           cy="32"
@@ -57,7 +57,7 @@ function Anillo({ pct }: { pct: number }) {
           className={pct >= 100 ? "stroke-emerald-400" : "stroke-emerald-500/80"}
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold">
+      <span className="absolute inset-0 flex items-center justify-center text-base font-semibold">
         {Math.round(pct)}%
       </span>
     </div>
@@ -123,7 +123,7 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
         title="Actualizar balance"
         className="group flex items-baseline gap-2 text-left"
       >
-        <span className="text-2xl font-semibold leading-tight tracking-tight">
+        <span className="text-xl font-semibold leading-tight tracking-tight">
           {plata(cuenta.balance_actual)}
         </span>
         <span className="text-xs text-neutral-600 opacity-0 transition group-hover:opacity-100">
