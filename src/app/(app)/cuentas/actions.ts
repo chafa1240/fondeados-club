@@ -112,8 +112,9 @@ function datosDesdeForm(fd: FormData) {
         conRetiro && fd.get("tiene_fee") === "si"
           ? numero(fd, "fee_activacion")
           : null,
-      // Reglas propias de la evaluación.
-      regla_consistencia: conRetiro ? null : numero(fd, "regla_consistencia"),
+      // La regla de consistencia aplica a los dos tipos.
+      regla_consistencia: numero(fd, "regla_consistencia"),
+      // El resto es propio de la evaluación.
       tipo_drawdown: conRetiro ? null : tipoDrawdown(fd),
       precio: conRetiro ? null : numero(fd, "precio"),
       cantidad_contratos: conRetiro ? null : entero(fd, "cantidad_contratos"),

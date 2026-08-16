@@ -502,6 +502,10 @@ export function TarjetaCuenta({
                   : plata(cuenta.fee_activacion, 2)
               }
             />
+            <Dato
+              label="Regla de consistencia"
+              valor={porcentaje(cuenta.regla_consistencia, 0)}
+            />
           </>
         ) : (
           <>

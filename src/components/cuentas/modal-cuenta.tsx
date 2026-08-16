@@ -327,6 +327,19 @@ export function ModalCuenta({
               </Campo>
             )}
 
+            <Campo
+              label="Regla de consistencia (%)"
+              ayuda="Máximo que puede representar un solo día"
+            >
+              <input
+                name="regla_consistencia"
+                inputMode="decimal"
+                placeholder="30"
+                defaultValue={texto(cuenta?.regla_consistencia)}
+                className={INPUT}
+              />
+            </Campo>
+
             <Campo label="Balance actual (USD)" ayuda="Lo actualizás vos cuando quieras">
               <input
                 name="balance_actual"
@@ -526,19 +539,6 @@ export function ModalCuenta({
             <>
               <Titulo>Reglas de la evaluación</Titulo>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Campo
-                  label="Regla de consistencia (%)"
-                  ayuda="Máximo que puede representar un solo día"
-                >
-                  <input
-                    name="regla_consistencia"
-                    inputMode="decimal"
-                    placeholder="30"
-                    defaultValue={texto(cuenta?.regla_consistencia)}
-                    className={INPUT}
-                  />
-                </Campo>
-
                 <Campo label="Tipo de drawdown">
                   <select
                     name="tipo_drawdown"
