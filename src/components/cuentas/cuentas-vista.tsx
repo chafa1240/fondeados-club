@@ -7,12 +7,16 @@ import { TarjetaCuenta } from "./tarjeta-cuenta";
 import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
+  ORDENES,
+  ORDEN_INFO,
   SALUDES,
   SALUD_INFO,
   TIPO_INFO,
   enJuego,
   etiquetaCantidad,
   nombresParaLote,
+  ordenarCuentas,
+  type Orden,
   plata,
   salud,
   sugerirNombre,
@@ -86,6 +90,7 @@ export function CuentasVista({
   const [saludes, setSaludes] = useState<Salud[]>([]);
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
+  const [orden, setOrden] = useState<Orden>("nuevas");
   // `duplicar` usa la cuenta como plantilla y crea copias nuevas en vez de
   // editarla.
   const [modal, setModal] = useState<null | {
@@ -123,7 +128,7 @@ export function CuentasVista({
 
   const visibles = useMemo(
     () =>
-      cuentas.filter((c) => {
+      ordenarCuentas(cuentas, orden).filter((c) => {
         // Las archivadas se ven solo cuando se piden.
         const archivada = c.estado === "archivada";
         if (verArchivadas !== archivada) return false;
@@ -147,7 +152,7 @@ export function CuentasVista({
       }),
     // filtrosEstado se deriva de pestana, no hace falta en las dependencias
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cuentas, pestana, estados, saludes, verArchivadas, firm]
+    [cuentas, pestana, estados, saludes, verArchivadas, firm, orden]
   );
 
   // El pie resume solo lo que sigue en juego: una cuenta pasada o quemada
@@ -170,6 +175,19 @@ export function CuentasVista({
         ))}
 
         <div className="ml-auto flex items-center gap-2">
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as Orden)}
+            aria-label="Ordenar cuentas"
+            className="rounded-full border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-300 outline-none focus:border-emerald-500"
+          >
+            {ORDENES.map((o) => (
+              <option key={o} value={o}>
+                {ORDEN_INFO[o]}
+              </option>
+            ))}
+          </select>
+
           {firms.length > 1 && (
             <select
               value={firm}

@@ -383,6 +383,34 @@ export const PREFIJO_NOMBRE: Record<Tipo, string> = {
   challenge: "Evaluación",
 };
 
+/* ---------- Orden de la lista ---------- */
+
+export const ORDENES = ["nuevas", "antiguas"] as const;
+export type Orden = (typeof ORDENES)[number];
+
+export const ORDEN_INFO: Record<Orden, string> = {
+  nuevas: "Más nuevas primero",
+  antiguas: "Más antiguas primero",
+};
+
+/**
+ * Ordena por fecha de inicio. Si dos cuentas arrancaron el mismo día
+ * (típico de un pack comprado junto), desempata por orden de carga para
+ * que el resultado sea siempre el mismo.
+ */
+export function ordenarCuentas<
+  T extends { fecha_inicio: string; created_at: string },
+>(cuentas: T[], orden: Orden): T[] {
+  const signo = orden === "nuevas" ? -1 : 1;
+
+  return [...cuentas].sort((a, b) => {
+    if (a.fecha_inicio !== b.fecha_inicio) {
+      return a.fecha_inicio < b.fecha_inicio ? signo * -1 : signo;
+    }
+    return a.created_at < b.created_at ? signo * -1 : signo;
+  });
+}
+
 /**
  * Cómo nombrar un conjunto de cuentas en el pie de la lista.
  * Si son todas del mismo tipo se las llama por su nombre ("3 evaluaciones",
