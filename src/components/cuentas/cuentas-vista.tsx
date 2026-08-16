@@ -7,10 +7,10 @@ import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
   TIPO_INFO,
+  enJuego,
   plata,
   sugerirNombre,
   type Cuenta,
-  type Estado,
   type Tipo,
 } from "@/lib/cuentas";
 
@@ -46,9 +46,26 @@ function Chip({
   );
 }
 
+/** Un filtro de la fila de abajo: qué dice el botón y a qué cuentas deja pasar. */
+type FiltroEstado = {
+  valor: string;
+  label: string;
+  pasa: (c: Cuenta) => boolean;
+};
+
+/**
+ * En "Todas" no se puede filtrar por estado concreto (una fondeada está
+ * "activa" y una evaluación "en curso"), así que se agrupa en las que
+ * seguís operando y las que ya terminaron.
+ */
+const FILTROS_TODAS: FiltroEstado[] = [
+  { valor: "en_juego", label: "Activas", pasa: (c) => enJuego(c.estado) },
+  { valor: "cerradas", label: "No activas", pasa: (c) => !enJuego(c.estado) },
+];
+
 export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
   const [pestana, setPestana] = useState<Pestana>("todas");
-  const [estado, setEstado] = useState<Estado | null>(null);
+  const [estado, setEstado] = useState<string | null>(null);
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
   const [modal, setModal] = useState<null | { cuenta?: Cuenta }>(null);
@@ -63,8 +80,15 @@ export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
     [cuentas]
   );
 
-  // Filtros de estado disponibles según la pestaña. En "Todas" no hay.
-  const filtrosEstado = pestana === "todas" ? [] : FILTROS_POR_TIPO[pestana];
+  // Filtros de estado disponibles según la pestaña.
+  const filtrosEstado: FiltroEstado[] =
+    pestana === "todas"
+      ? FILTROS_TODAS
+      : FILTROS_POR_TIPO[pestana].map((e) => ({
+          valor: e,
+          label: ESTADO_PLURAL[e],
+          pasa: (c: Cuenta) => c.estado === e,
+        }));
 
   const visibles = useMemo(
     () =>
@@ -74,11 +98,17 @@ export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
         if (verArchivadas !== archivada) return false;
 
         if (pestana !== "todas" && c.tipo !== pestana) return false;
-        if (estado !== null && c.estado !== estado) return false;
         if (firm !== "todas" && c.firm !== firm) return false;
+
+        if (estado !== null) {
+          const filtro = filtrosEstado.find((f) => f.valor === estado);
+          if (filtro && !filtro.pasa(c)) return false;
+        }
 
         return true;
       }),
+    // filtrosEstado se deriva de pestana, no hace falta en las dependencias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [cuentas, pestana, estado, verArchivadas, firm]
   );
 
@@ -125,17 +155,17 @@ export function CuentasVista({ cuentas }: { cuentas: Cuenta[] }) {
 
       {/* Filtros de estado + archivadas */}
       <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
-        {filtrosEstado.map((e) => (
+        {filtrosEstado.map((f) => (
           <button
-            key={e}
-            onClick={() => setEstado(estado === e ? null : e)}
+            key={f.valor}
+            onClick={() => setEstado(estado === f.valor ? null : f.valor)}
             className={`rounded-lg px-2.5 py-1 transition ${
-              estado === e
+              estado === f.valor
                 ? "bg-neutral-800 text-neutral-100"
                 : "text-neutral-500 hover:text-neutral-300"
             }`}
           >
-            {ESTADO_PLURAL[e]}
+            {f.label}
           </button>
         ))}
 

@@ -63,6 +63,15 @@ export const FILTROS_POR_TIPO: Record<Tipo, Estado[]> = {
   challenge: ["passed", "quemada"],
 };
 
+/**
+ * Una cuenta "en juego" es la que todavía estás operando: activa si es
+ * fondeada, en curso si es evaluación. El resto (pasada, quemada,
+ * archivada) ya terminó su ciclo.
+ */
+export function enJuego(estado: Estado) {
+  return estado === "activa" || estado === "en_curso";
+}
+
 /** Etiquetas en plural, para los filtros. */
 export const ESTADO_PLURAL: Record<Estado, string> = {
   activa: "Activas",
@@ -260,8 +269,7 @@ export function salud(cuenta: Cuenta): Salud | null {
  * si está passed, quemada o archivada, manda el estado elegido a mano.
  */
 export function chipDeCuenta(cuenta: Cuenta): Chip {
-  const enJuego = cuenta.estado === "activa" || cuenta.estado === "en_curso";
-  if (!enJuego) return ESTADO_INFO[cuenta.estado];
+  if (!enJuego(cuenta.estado)) return ESTADO_INFO[cuenta.estado];
 
   if (cuenta.tipo === "fondeada") {
     const s = salud(cuenta);
