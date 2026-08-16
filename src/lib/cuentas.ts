@@ -394,20 +394,28 @@ export const ORDEN_INFO: Record<Orden, string> = {
 };
 
 /**
- * Ordena por fecha de inicio. Si dos cuentas arrancaron el mismo día
- * (típico de un pack comprado junto), desempata por orden de carga para
- * que el resultado sea siempre el mismo.
+ * Ordena por fecha de inicio, y desempata por orden de carga.
+ *
+ * Ojo con los packs: las cuentas creadas de un saque comparten el mismo
+ * `created_at` (Postgres le pone a toda la tanda la hora de la
+ * transacción), así que ahí no alcanza y hace falta un tercer criterio.
+ * Se usa el nombre, comparado como número cuando termina en número
+ * (Evaluación 9 antes que Evaluación 10) y en la misma dirección que el
+ * orden elegido, para que el pack no quede al revés que el resto.
  */
 export function ordenarCuentas<
-  T extends { fecha_inicio: string; created_at: string },
+  T extends { fecha_inicio: string; created_at: string; nombre: string },
 >(cuentas: T[], orden: Orden): T[] {
   const signo = orden === "nuevas" ? -1 : 1;
 
   return [...cuentas].sort((a, b) => {
     if (a.fecha_inicio !== b.fecha_inicio) {
-      return a.fecha_inicio < b.fecha_inicio ? signo * -1 : signo;
+      return a.fecha_inicio < b.fecha_inicio ? -signo : signo;
     }
-    return a.created_at < b.created_at ? signo * -1 : signo;
+    if (a.created_at !== b.created_at) {
+      return a.created_at < b.created_at ? -signo : signo;
+    }
+    return signo * a.nombre.localeCompare(b.nombre, "es", { numeric: true });
   });
 }
 
