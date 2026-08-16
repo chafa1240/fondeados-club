@@ -11,13 +11,13 @@ import {
 import {
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
+  TIPO_DRAWDOWN_INFO,
   TIPO_INFO,
   anillo,
   chipDeCuenta,
   colchon,
   estadoAlDesarchivar,
   fechaCorta,
-  pisoDrawdown,
   plata,
   porcentaje,
   salud,
@@ -33,7 +33,6 @@ import {
 function Anillo({ pct }: { pct: number }) {
   const r = 26;
   const largo = 2 * Math.PI * r;
-  const completo = pct >= 100;
 
   return (
     <div className="relative h-16 w-16 shrink-0">
@@ -55,7 +54,7 @@ function Anillo({ pct }: { pct: number }) {
           strokeLinecap="round"
           strokeDasharray={largo}
           strokeDashoffset={largo * (1 - pct / 100)}
-          className={completo ? "stroke-emerald-400" : "stroke-emerald-500/80"}
+          className={pct >= 100 ? "stroke-emerald-400" : "stroke-emerald-500/80"}
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
@@ -131,9 +130,7 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
           editar
         </span>
       </button>
-      <p
-        className={`text-sm ${positivo ? "text-emerald-400" : "text-rose-400"}`}
-      >
+      <p className={`text-sm ${positivo ? "text-emerald-400" : "text-rose-400"}`}>
         {positivo ? "+" : "−"}
         {plata(Math.abs(v.monto))} ({positivo ? "+" : "−"}
         {porcentaje(Math.abs(v.pct))})
@@ -185,7 +182,7 @@ function Menu({
       </button>
 
       {abierto && (
-        <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+        <div className="absolute right-0 z-20 mt-1 w-48 overflow-visible rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
           <button
             className={item}
             onClick={() => {
@@ -270,7 +267,7 @@ function Menu({
             onClick={() => {
               if (
                 !confirm(
-                  `¿Eliminar "${cuenta.nombre}"? Sus payouts también se borran. No se puede deshacer.`
+                  `¿Eliminar "${cuenta.nombre}"? Sus retiros también se borran. No se puede deshacer.`
                 )
               ) {
                 return;
@@ -289,7 +286,7 @@ function Menu({
   );
 }
 
-/* ---------- Tarjeta ---------- */
+/* ---------- Piezas sueltas ---------- */
 
 function Dato({ label, valor }: { label: string; valor: string }) {
   return (
@@ -299,6 +296,34 @@ function Dato({ label, valor }: { label: string; valor: string }) {
     </div>
   );
 }
+
+function LineaRetiro({ fecha, monto }: { fecha: string; monto: string }) {
+  return (
+    <li className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-neutral-500">{fecha}</span>
+      <span className="text-emerald-400">{monto}</span>
+    </li>
+  );
+}
+
+function BotonVuelta({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg px-2 py-1 text-xs text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200"
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ---------- Tarjeta ---------- */
 
 export function TarjetaCuenta({
   cuenta,
@@ -311,16 +336,30 @@ export function TarjetaCuenta({
   onEditar: () => void;
   onRetiros: () => void;
 }) {
+  const [dorso, setDorso] = useState(false);
+
   const chip = chipDeCuenta(cuenta);
   const meta = anillo(cuenta);
   const esFondeada = tieneRetiro(cuenta.tipo);
-  const piso = pisoDrawdown(cuenta);
-  const retirado = totalRetirado(cuenta, retiros);
   const c = colchon(cuenta);
   const s = salud(cuenta);
+  const retirado = totalRetirado(cuenta, retiros);
 
-  return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-700">
+  const drawdown =
+    cuenta.drawdown_maximo_monto != null
+      ? `${plata(cuenta.drawdown_maximo_monto)}${
+          cuenta.drawdown_maximo_pct != null
+            ? ` (${porcentaje(cuenta.drawdown_maximo_pct)})`
+            : ""
+        }`
+      : "—";
+
+  const CAJA =
+    "rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-700";
+
+  /* ----- Frente ----- */
+  const frente = (
+    <div className={CAJA}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -354,7 +393,6 @@ export function TarjetaCuenta({
         )}
       </div>
 
-      {/* Qué falta para llegar al objetivo */}
       {meta !== null && (
         <p className="mt-3 text-xs text-neutral-500">
           {meta.falta === 0 ? (
@@ -368,14 +406,12 @@ export function TarjetaCuenta({
               Faltan <span className="text-neutral-300">{plata(meta.falta)}</span>{" "}
               {esFondeada
                 ? `para retirar ${plata(cuenta.objetivo_retiro)}`
-                : "para pasar la evaluación"}{" "}
-              (balance {plata(meta.meta)})
+                : "para pasar la evaluación"}
             </>
           )}
         </p>
       )}
 
-      {/* Colchón hasta el drawdown */}
       {c !== null && s !== null && (
         <p className="mt-1 text-xs text-neutral-500">
           Colchón hasta el drawdown:{" "}
@@ -393,31 +429,14 @@ export function TarjetaCuenta({
         </p>
       )}
 
+      {/* Lo mínimo del ciclo */}
       <div className="mt-5 grid grid-cols-2 gap-3 border-t border-neutral-800 pt-4">
-        <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
-        <Dato
-          label="Drawdown máx."
-          valor={
-            cuenta.drawdown_maximo_monto != null
-              ? `${plata(cuenta.drawdown_maximo_monto)}${
-                  cuenta.drawdown_maximo_pct != null
-                    ? ` (${porcentaje(cuenta.drawdown_maximo_pct)})`
-                    : ""
-                }`
-              : "—"
-          }
-        />
+        <Dato label="Drawdown máx." valor={drawdown} />
         {esFondeada ? (
-          <>
-            <Dato
-              label="Profit split"
-              valor={porcentaje(cuenta.profit_split, 0)}
-            />
-            <Dato
-              label="Objetivo de retiro"
-              valor={plata(cuenta.objetivo_retiro)}
-            />
-          </>
+          <Dato
+            label="Objetivo de retiro"
+            valor={plata(cuenta.objetivo_retiro)}
+          />
         ) : (
           <Dato
             label="Profit target"
@@ -432,71 +451,111 @@ export function TarjetaCuenta({
             }
           />
         )}
-        <Dato label="No bajar de" valor={piso != null ? plata(piso) : "—"} />
-        <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
-        {esFondeada && (
-          <Dato
-            label="Retirado"
-            valor={retirado > 0 ? plata(retirado) : "Todavía nada"}
-          />
-        )}
-
-        <Dato
-          label="Fee de activación"
-          valor={
-            cuenta.fee_activacion === null
-              ? "No tuvo"
-              : plata(cuenta.fee_activacion, 2)
-          }
-        />
       </div>
 
-      {/* Detalle de los retiros: cuánto y cuándo */}
-      {esFondeada && (retiros.length > 0 || cuenta.retiros_previos > 0) && (
+      {/* Últimos 3 retiros */}
+      {esFondeada && retiros.length > 0 && (
+        <ul className="mt-4 space-y-1 border-t border-neutral-800 pt-3">
+          {retiros.slice(0, 3).map((r) => (
+            <LineaRetiro
+              key={r.id}
+              fecha={fechaCorta(r.fecha)}
+              monto={plata(r.monto, 2)}
+            />
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-4 flex justify-end">
+        <BotonVuelta onClick={() => setDorso(true)}>+ Información…</BotonVuelta>
+      </div>
+    </div>
+  );
+
+  /* ----- Dorso ----- */
+  const dorsoContenido = (
+    <div className={`${CAJA} flex h-full flex-col overflow-y-auto`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold">{cuenta.nombre}</h3>
+          <p className="truncate text-sm text-neutral-400">{cuenta.firm}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-neutral-800 pt-4">
+        <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
+        <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
+
+        {esFondeada ? (
+          <>
+            <Dato
+              label="Profit split"
+              valor={porcentaje(cuenta.profit_split, 0)}
+            />
+            <Dato
+              label="Fee de activación"
+              valor={
+                cuenta.fee_activacion === null
+                  ? "No tuvo"
+                  : plata(cuenta.fee_activacion, 2)
+              }
+            />
+          </>
+        ) : (
+          <>
+            <Dato
+              label="Regla de consistencia"
+              valor={porcentaje(cuenta.regla_consistencia, 0)}
+            />
+            <Dato
+              label="Tipo de drawdown"
+              valor={
+                cuenta.tipo_drawdown
+                  ? TIPO_DRAWDOWN_INFO[cuenta.tipo_drawdown]
+                  : "—"
+              }
+            />
+            <Dato label="Precio" valor={plata(cuenta.precio, 2)} />
+            <Dato
+              label="Contratos"
+              valor={
+                cuenta.cantidad_contratos != null
+                  ? String(cuenta.cantidad_contratos)
+                  : "—"
+              }
+            />
+          </>
+        )}
+      </div>
+
+      {/* Todos los retiros */}
+      {esFondeada && (
         <div className="mt-4 border-t border-neutral-800 pt-3">
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <p className="text-xs uppercase tracking-wide text-neutral-600">
-              Retiros
-            </p>
-            <button
-              onClick={onRetiros}
-              className="text-xs text-neutral-600 transition hover:text-neutral-300"
-            >
-              Ver todos
-            </button>
-          </div>
+          <p className="mb-1.5 text-xs uppercase tracking-wide text-neutral-600">
+            Retiros · {plata(retirado)}
+          </p>
 
-          <ul className="space-y-1">
-            {retiros.slice(0, 3).map((r) => (
-              <li
-                key={r.id}
-                className="flex items-baseline justify-between gap-3 text-xs"
-              >
-                <span className="text-neutral-500">{fechaCorta(r.fecha)}</span>
-                <span className="text-emerald-400">{plata(r.monto, 2)}</span>
-              </li>
-            ))}
-
-            {retiros.length > 3 && (
-              <li>
-                <button
-                  onClick={onRetiros}
-                  className="text-xs text-neutral-600 underline underline-offset-2 transition hover:text-neutral-300"
-                >
-                  y {retiros.length - 3} más
-                </button>
-              </li>
-            )}
-
-            {cuenta.retiros_previos > 0 && (
-              <li className="flex items-baseline justify-between gap-3 text-xs">
-                <span className="text-neutral-500">Previos a la app</span>
-                <span className="text-neutral-400">
-                  {plata(cuenta.retiros_previos, 2)}
-                </span>
-              </li>
-            )}
-          </ul>
+          {retiros.length === 0 && cuenta.retiros_previos === 0 ? (
+            <p className="text-xs text-neutral-600">Todavía no retiraste nada.</p>
+          ) : (
+            <ul className="space-y-1">
+              {retiros.map((r) => (
+                <LineaRetiro
+                  key={r.id}
+                  fecha={fechaCorta(r.fecha)}
+                  monto={plata(r.monto, 2)}
+                />
+              ))}
+              {cuenta.retiros_previos > 0 && (
+                <li className="flex items-baseline justify-between gap-3 text-xs">
+                  <span className="text-neutral-500">Previos a la app</span>
+                  <span className="text-neutral-400">
+                    {plata(cuenta.retiros_previos, 2)}
+                  </span>
+                </li>
+              )}
+            </ul>
+          )}
         </div>
       )}
 
@@ -505,6 +564,37 @@ export function TarjetaCuenta({
           {cuenta.notas}
         </p>
       )}
+
+      <div className="mt-auto flex justify-end pt-4">
+        <BotonVuelta onClick={() => setDorso(false)}>← Volver</BotonVuelta>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="[perspective:1200px]">
+      <div
+        className="relative transition-transform duration-500 [transform-style:preserve-3d]"
+        style={{ transform: dorso ? "rotateY(180deg)" : undefined }}
+      >
+        {/* Frente: define el alto de la tarjeta */}
+        <div
+          className={`[backface-visibility:hidden] ${dorso ? "pointer-events-none" : ""}`}
+          aria-hidden={dorso}
+        >
+          {frente}
+        </div>
+
+        {/* Dorso: encima del frente, girado */}
+        <div
+          className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] ${
+            dorso ? "" : "pointer-events-none"
+          }`}
+          aria-hidden={!dorso}
+        >
+          {dorsoContenido}
+        </div>
+      </div>
     </div>
   );
 }

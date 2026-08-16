@@ -143,6 +143,16 @@ export const SALUD_INFO: Record<Salud, Chip> = {
 export const UMBRAL_SALUDABLE_DEFAULT = 3;
 export const UMBRAL_PRECAUCION_DEFAULT = 2;
 
+/* ---------- Tipo de drawdown (evaluaciones) ---------- */
+
+export const TIPOS_DRAWDOWN = ["trailing", "eod"] as const;
+export type TipoDrawdown = (typeof TIPOS_DRAWDOWN)[number];
+
+export const TIPO_DRAWDOWN_INFO: Record<TipoDrawdown, string> = {
+  trailing: "Trailing (sigue al pico)",
+  eod: "EOD (cierre del día)",
+};
+
 /* ---------- La cuenta ---------- */
 
 export type Cuenta = {
@@ -166,6 +176,11 @@ export type Cuenta = {
   umbral_saludable_monto: number | null;
   umbral_precaucion_pct: number;
   umbral_precaucion_monto: number | null;
+  /** Solo evaluaciones: las reglas y el costo de la evaluación. */
+  regla_consistencia: number | null;
+  tipo_drawdown: TipoDrawdown | null;
+  precio: number | null;
+  cantidad_contratos: number | null;
   /** Lo ya retirado antes de empezar a usar la app. */
   retiros_previos: number;
   /** Lo que costó activar la cuenta. null = no tuvo fee. */

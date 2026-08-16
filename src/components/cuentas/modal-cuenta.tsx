@@ -8,6 +8,8 @@ import {
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
   TIPOS,
+  TIPOS_DRAWDOWN,
+  TIPO_DRAWDOWN_INFO,
   TIPO_INFO,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
@@ -382,7 +384,9 @@ export function ModalCuenta({
             </>
           )}
 
-          {/* Fee de activación — puede no haber tenido */}
+          {/* Fee de activación — solo fondeadas, y puede no haber tenido */}
+          {esFondeada && (
+            <>
           <Titulo>Fee de activación</Titulo>
           <div className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="tiene_fee" value={conFee ? "si" : "no"} />
@@ -424,6 +428,8 @@ export function ModalCuenta({
               />
             </div>
           </div>
+            </>
+          )}
 
           {/* Profit target — el objetivo que aprueba la evaluación */}
           {!esFondeada && (
@@ -514,6 +520,62 @@ export function ModalCuenta({
               />
             </Campo>
           </div>
+
+          {/* Reglas de la evaluación */}
+          {!esFondeada && (
+            <>
+              <Titulo>Reglas de la evaluación</Titulo>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo
+                  label="Regla de consistencia (%)"
+                  ayuda="Máximo que puede representar un solo día"
+                >
+                  <input
+                    name="regla_consistencia"
+                    inputMode="decimal"
+                    placeholder="30"
+                    defaultValue={texto(cuenta?.regla_consistencia)}
+                    className={INPUT}
+                  />
+                </Campo>
+
+                <Campo label="Tipo de drawdown">
+                  <select
+                    name="tipo_drawdown"
+                    defaultValue={cuenta?.tipo_drawdown ?? ""}
+                    className={INPUT}
+                  >
+                    <option value="">Sin definir</option>
+                    {TIPOS_DRAWDOWN.map((t) => (
+                      <option key={t} value={t}>
+                        {TIPO_DRAWDOWN_INFO[t]}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+
+                <Campo label="Precio (USD)" ayuda="Lo que pagaste por la evaluación">
+                  <input
+                    name="precio"
+                    inputMode="decimal"
+                    placeholder="150"
+                    defaultValue={texto(cuenta?.precio)}
+                    className={INPUT}
+                  />
+                </Campo>
+
+                <Campo label="Cantidad de contratos">
+                  <input
+                    name="cantidad_contratos"
+                    inputMode="numeric"
+                    placeholder="10"
+                    defaultValue={texto(cuenta?.cantidad_contratos)}
+                    className={INPUT}
+                  />
+                </Campo>
+              </div>
+            </>
+          )}
 
           {/* Estado y notas */}
           <Titulo>Estado y notas</Titulo>

@@ -230,6 +230,17 @@ fila en `payouts` y **descuentan el monto del balance** en la misma
 acción; borrar un retiro se lo devuelve. Están en `registrarRetiro()` y
 `eliminarRetiro()` de `src/app/(app)/cuentas/actions.ts`.
 
+**Actualizado por `supabase/005_datos_evaluacion.sql` (2026-08-16):**
+`regla_consistencia` (%), `tipo_drawdown` (`trailing` | `eod`), `precio`
+(lo que costó la evaluación) y `cantidad_contratos`. Son **solo de
+evaluaciones**; en fondeadas se guardan en NULL. El `fee_activacion` es al
+revés: solo fondeadas.
+
+**Tarjeta de dos caras** (`src/components/cuentas/tarjeta-cuenta.tsx`):
+el frente muestra lo mínimo (balance, anillo, drawdown máx. y objetivo /
+profit target, más los últimos 3 retiros); el botón "+ Información…" la da
+vuelta con una animación 3D y en el dorso están el resto de los datos.
+
 ### gastos
 Una fila por gasto. Campos: `cuenta_id` (**nullable** — permite gastos
 generales no atados a una cuenta, ej. software/suscripciones),

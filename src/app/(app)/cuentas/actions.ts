@@ -7,6 +7,8 @@ import {
   estadoValido,
   tieneRetiro,
   TIPOS,
+  TIPOS_DRAWDOWN,
+  type TipoDrawdown,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
   type Estado,
@@ -27,6 +29,18 @@ function numero(fd: FormData, campo: string) {
   if (v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function entero(fd: FormData, campo: string) {
+  const n = numero(fd, campo);
+  return n === null ? null : Math.round(n);
+}
+
+function tipoDrawdown(fd: FormData) {
+  const v = String(fd.get("tipo_drawdown") ?? "");
+  return TIPOS_DRAWDOWN.includes(v as TipoDrawdown)
+    ? (v as TipoDrawdown)
+    : null;
 }
 
 function datosDesdeForm(fd: FormData) {
@@ -91,9 +105,18 @@ function datosDesdeForm(fd: FormData) {
       profit_target_pct: conRetiro ? null : numero(fd, "profit_target_pct"),
       profit_target_monto: conRetiro ? null : numero(fd, "profit_target_monto"),
       retiros_previos: conRetiro ? (numero(fd, "retiros_previos") ?? 0) : 0,
+      // El fee de activación es de la fondeada; en la evaluación se paga
+      // el precio de la evaluación, que va más abajo.
       // La tilde destildada manda: sin fee, no se guarda monto.
       fee_activacion:
-        fd.get("tiene_fee") === "si" ? numero(fd, "fee_activacion") : null,
+        conRetiro && fd.get("tiene_fee") === "si"
+          ? numero(fd, "fee_activacion")
+          : null,
+      // Reglas propias de la evaluación.
+      regla_consistencia: conRetiro ? null : numero(fd, "regla_consistencia"),
+      tipo_drawdown: conRetiro ? null : tipoDrawdown(fd),
+      precio: conRetiro ? null : numero(fd, "precio"),
+      cantidad_contratos: conRetiro ? null : entero(fd, "cantidad_contratos"),
       umbral_saludable_pct,
       umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
       umbral_precaucion_pct,
