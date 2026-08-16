@@ -478,8 +478,13 @@ export function TarjetaCuenta({
             ))}
 
             {retiros.length > 3 && (
-              <li className="text-xs text-neutral-600">
-                y {retiros.length - 3} más
+              <li>
+                <button
+                  onClick={onRetiros}
+                  className="text-xs text-neutral-600 underline underline-offset-2 transition hover:text-neutral-300"
+                >
+                  y {retiros.length - 3} más
+                </button>
               </li>
             )}
 
