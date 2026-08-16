@@ -35,8 +35,8 @@ function Anillo({ pct }: { pct: number }) {
   const largo = 2 * Math.PI * r;
 
   return (
-    <div className="relative h-16 w-16 shrink-0">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+    <div className="relative h-24 w-24 shrink-0">
+      <svg viewBox="0 0 64 64" className="h-24 w-24 -rotate-90">
         <circle
           cx="32"
           cy="32"
@@ -57,7 +57,7 @@ function Anillo({ pct }: { pct: number }) {
           className={pct >= 100 ? "stroke-emerald-400" : "stroke-emerald-500/80"}
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+      <span className="absolute inset-0 flex items-center justify-center text-base font-semibold">
         {Math.round(pct)}%
       </span>
     </div>
@@ -355,7 +355,7 @@ export function TarjetaCuenta({
       : "—";
 
   const CAJA =
-    "rounded-xl border border-neutral-800 bg-neutral-900 p-5 transition hover:border-neutral-700";
+    "rounded-xl border border-neutral-800 bg-neutral-900 p-4 transition hover:border-neutral-700";
 
   /* ----- Frente ----- */
   const frente = (
@@ -381,12 +381,12 @@ export function TarjetaCuenta({
         </div>
       </div>
 
-      <div className="mt-4 flex items-end justify-between gap-4">
+      <div className="mt-3 flex items-end justify-between gap-3">
         <BalanceEditable cuenta={cuenta} />
         {meta !== null && (
           <div className="flex flex-col items-center">
             <Anillo pct={meta.pct} />
-            <span className="mt-1 text-[11px] text-neutral-500">
+            <span className="text-[11px] text-neutral-500">
               {meta.etiqueta}
             </span>
           </div>
@@ -394,7 +394,7 @@ export function TarjetaCuenta({
       </div>
 
       {meta !== null && (
-        <p className="mt-3 text-xs text-neutral-500">
+        <p className="mt-2 text-xs text-neutral-500">
           {meta.falta === 0 ? (
             <span className="text-emerald-400">
               {esFondeada
@@ -430,7 +430,7 @@ export function TarjetaCuenta({
       )}
 
       {/* Lo mínimo del ciclo */}
-      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-neutral-800 pt-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3">
         <Dato label="Drawdown máx." valor={drawdown} />
         {esFondeada ? (
           <Dato
@@ -455,7 +455,7 @@ export function TarjetaCuenta({
 
       {/* Últimos 3 retiros */}
       {esFondeada && retiros.length > 0 && (
-        <ul className="mt-4 space-y-1 border-t border-neutral-800 pt-3">
+        <ul className="mt-3 space-y-0.5 border-t border-neutral-800 pt-2">
           {retiros.slice(0, 3).map((r) => (
             <LineaRetiro
               key={r.id}
@@ -466,7 +466,7 @@ export function TarjetaCuenta({
         </ul>
       )}
 
-      <div className="mt-4 flex justify-end">
+      <div className="mt-2 flex justify-end">
         <BotonVuelta onClick={() => setDorso(true)}>+ Información…</BotonVuelta>
       </div>
     </div>
@@ -482,7 +482,7 @@ export function TarjetaCuenta({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-neutral-800 pt-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3">
         <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
 
@@ -530,15 +530,15 @@ export function TarjetaCuenta({
 
       {/* Todos los retiros */}
       {esFondeada && (
-        <div className="mt-4 border-t border-neutral-800 pt-3">
-          <p className="mb-1.5 text-xs uppercase tracking-wide text-neutral-600">
+        <div className="mt-3 border-t border-neutral-800 pt-2">
+          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-600">
             Retiros · {plata(retirado)}
           </p>
 
           {retiros.length === 0 && cuenta.retiros_previos === 0 ? (
             <p className="text-xs text-neutral-600">Todavía no retiraste nada.</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {retiros.map((r) => (
                 <LineaRetiro
                   key={r.id}
@@ -560,12 +560,12 @@ export function TarjetaCuenta({
       )}
 
       {cuenta.notas && (
-        <p className="mt-4 border-t border-neutral-800 pt-3 text-xs text-neutral-500">
+        <p className="mt-3 border-t border-neutral-800 pt-2 text-xs text-neutral-500">
           {cuenta.notas}
         </p>
       )}
 
-      <div className="mt-auto flex justify-end pt-4">
+      <div className="mt-auto flex justify-end pt-3">
         <BotonVuelta onClick={() => setDorso(false)}>← Volver</BotonVuelta>
       </div>
     </div>
