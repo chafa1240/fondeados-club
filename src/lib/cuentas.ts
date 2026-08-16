@@ -72,6 +72,20 @@ export function enJuego(estado: Estado) {
   return estado === "activa" || estado === "en_curso";
 }
 
+/**
+ * Estados que cierran el ciclo de la cuenta: al llegar acá se pregunta en
+ * qué fecha pasó, y al salir de acá esa fecha se borra.
+ */
+export function esCierre(estado: Estado) {
+  return estado === "passed" || estado === "quemada";
+}
+
+/** Cómo se llama esa fecha según cómo terminó la cuenta. */
+export const ETIQUETA_CIERRE: Record<"passed" | "quemada", string> = {
+  passed: "¿Qué día la pasaste?",
+  quemada: "¿Qué día se quemó?",
+};
+
 /** Etiquetas en plural, para los filtros. */
 export const ESTADO_PLURAL: Record<Estado, string> = {
   activa: "Activas",
@@ -186,6 +200,8 @@ export type Cuenta = {
   /** Lo que costó activar la cuenta. null = no tuvo fee. */
   fee_activacion: number | null;
   estado: Estado;
+  /** Día en que pasó o se quemó. null mientras sigue en juego. */
+  fecha_cierre: string | null;
   balance_actual: number;
   notas: string | null;
   created_at: string;

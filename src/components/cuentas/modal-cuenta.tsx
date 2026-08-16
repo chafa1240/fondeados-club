@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
 import {
   CANTIDAD_MAXIMA_LOTE,
+  esCierre,
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
@@ -217,6 +218,16 @@ export function ModalCuenta({
     cuenta && estadosPosibles.includes(cuenta.estado)
       ? cuenta.estado
       : estadosPosibles[0];
+
+  // Controlado para poder mostrar la fecha de cierre al elegir
+  // Pasada / Quemada. Se resetea si cambia el tipo, porque cada tipo tiene
+  // su propia lista de estados.
+  const [estado, setEstado] = useState<Estado>(estadoActual);
+
+  useEffect(() => {
+    if (!estadosPosibles.includes(estado)) setEstado(estadosPosibles[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo]);
 
   // Cerrar al guardar bien, y con la tecla Escape.
   useEffect(() => {
@@ -672,8 +683,8 @@ export function ModalCuenta({
             >
               <select
                 name="estado"
-                key={tipo}
-                defaultValue={estadoActual}
+                value={estado}
+                onChange={(e) => setEstado(e.target.value as Estado)}
                 className={INPUT}
               >
                 {estadosPosibles.map((e) => (
@@ -683,6 +694,22 @@ export function ModalCuenta({
                 ))}
               </select>
             </Campo>
+
+            {/* La fecha de cierre solo aplica si la cuenta ya terminó */}
+            {esCierre(estado) && (
+              <Campo
+                label={estado === "passed" ? "¿Qué día la pasaste?" : "¿Qué día se quemó?"}
+                ayuda="Se puede dejar vacío"
+              >
+                <input
+                  name="fecha_cierre"
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  defaultValue={cuenta?.fecha_cierre ?? ""}
+                  className={INPUT}
+                />
+              </Campo>
+            )}
           </div>
 
           <Campo label="Notas">

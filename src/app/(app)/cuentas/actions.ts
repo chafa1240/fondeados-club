@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import {
   balanceAlPasar,
   CANTIDAD_MAXIMA_LOTE,
+  enJuego,
+  esCierre,
   ESTADOS,
   estadoValido,
   nombresParaLote,
@@ -126,6 +128,8 @@ function datosDesdeForm(fd: FormData) {
     umbral_saludable_monto: numero(fd, "umbral_saludable_monto"),
     umbral_precaucion_pct,
     umbral_precaucion_monto: numero(fd, "umbral_precaucion_monto"),
+    // Solo tiene fecha de cierre la cuenta que ya terminó su ciclo.
+    fecha_cierre: esCierre(estado) ? texto(fd, "fecha_cierre") : null,
     // Si no cargó balance todavía, arranca en el balance base.
     balance_actual: balance === null ? tamano_cuenta : balance,
     notas: texto(fd, "notas"),
@@ -205,14 +209,32 @@ export async function guardarCuenta(
  * <form action=...>). Con formulario, cerrar el menú desmontaba el form
  * antes de que se enviara y la acción nunca llegaba a correr.
  */
-export async function cambiarEstado(id: string, estado: Estado) {
+export async function cambiarEstado(
+  id: string,
+  estado: Estado,
+  /** Día en que pasó o se quemó. Solo se usa en esos dos estados. */
+  fechaCierre?: string | null
+) {
   if (!id || !ESTADOS.includes(estado)) return;
 
   const supabase = createClient();
 
   // Al marcar una evaluación como pasada, el balance salta al objetivo:
   // si la aprobaste, llegaste al profit target sí o sí.
-  const cambios: { estado: Estado; balance_actual?: number } = { estado };
+  const cambios: {
+    estado: Estado;
+    balance_actual?: number;
+    fecha_cierre?: string | null;
+  } = { estado };
+
+  // La fecha de cierre acompaña al cierre: se guarda al pasar/quemarse y
+  // se borra si la cuenta vuelve a estar en juego. Al archivar no se toca,
+  // así una evaluación pasada no pierde su fecha al guardarla.
+  if (esCierre(estado)) {
+    cambios.fecha_cierre = fechaCierre ?? null;
+  } else if (enJuego(estado)) {
+    cambios.fecha_cierre = null;
+  }
 
   if (estado === "passed") {
     const { data: cuenta } = await supabase
@@ -353,7 +375,7 @@ function mensajeDeError(mensaje: string) {
     return "La tabla no tiene permisos para la API. Corré supabase/exponer_tablas.sql en el SQL Editor.";
   }
   if (mensaje.includes("does not exist") || mensaje.includes("schema cache")) {
-    return "Falta correr la migración supabase/002_tipos_y_salud.sql en el SQL Editor de Supabase.";
+    return "Falta correr alguna migración de la carpeta supabase/ en el SQL Editor de Supabase (la última es 006_fecha_cierre.sql).";
   }
   return mensaje;
 }

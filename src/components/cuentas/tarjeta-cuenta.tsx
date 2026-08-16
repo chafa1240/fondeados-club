@@ -11,13 +11,16 @@ import {
 import {
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
+  ETIQUETA_CIERRE,
   TIPO_DRAWDOWN_INFO,
   TIPO_INFO,
   anillo,
   chipDeCuenta,
   colchon,
+  esCierre,
   estadoAlDesarchivar,
   fechaCorta,
+  type Estado,
   plata,
   porcentaje,
   salud,
@@ -177,6 +180,82 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
   );
 }
 
+/* ---------- Fecha de cierre (pasada / quemada) ---------- */
+
+/**
+ * Al cerrar una cuenta se pregunta el día: casi nunca la marcás el mismo
+ * día que pasó. Se puede omitir y queda sin fecha.
+ */
+function ModalCierre({
+  cuenta,
+  estado,
+  onConfirmar,
+  onCerrar,
+}: {
+  cuenta: Cuenta;
+  estado: "passed" | "quemada";
+  onConfirmar: (fecha: string | null) => void;
+  onCerrar: () => void;
+}) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(cuenta.fecha_cierre ?? hoy);
+  const [trabajando, empezar] = useTransition();
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onCerrar]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}
+    >
+      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+        <h2 className="text-base font-semibold">{ETIQUETA_CIERRE[estado]}</h2>
+        <p className="mt-1 text-sm text-neutral-400">
+          {cuenta.nombre} · {cuenta.firm}
+        </p>
+
+        <input
+          type="date"
+          value={fecha}
+          max={hoy}
+          onChange={(e) => setFecha(e.target.value)}
+          className="mt-4 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+        />
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={trabajando}
+            onClick={() => empezar(() => onConfirmar(null))}
+            className="rounded-lg px-3 py-2 text-sm text-neutral-500 transition hover:text-neutral-300 disabled:opacity-50"
+          >
+            Sin fecha
+          </button>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="rounded-lg border border-neutral-700 px-3 py-2 text-sm transition hover:bg-neutral-800"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={trabajando || !fecha}
+            onClick={() => empezar(() => onConfirmar(fecha))}
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {trabajando ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Menú de la tarjeta ---------- */
 
 function Menu({
@@ -193,8 +272,22 @@ function Menu({
   const [abierto, setAbierto] = useState(false);
   const [submenu, setSubmenu] = useState(false);
   const [trabajando, empezar] = useTransition();
+  // Estado que se va a aplicar en cuanto el usuario elija la fecha.
+  const [cerrando, setCerrando] = useState<null | "passed" | "quemada">(null);
   const ref = useRef<HTMLDivElement>(null);
   const archivada = cuenta.estado === "archivada";
+
+  /**
+   * Pasar o quemar pregunta primero el día; el resto de los estados se
+   * aplican de una.
+   */
+  function elegirEstado(e: Estado) {
+    setSubmenu(false);
+    setAbierto(false);
+
+    if (esCierre(e)) return setCerrando(e);
+    empezar(() => cambiarEstado(cuenta.id, e));
+  }
 
   useEffect(() => {
     if (!abierto) return;
@@ -280,15 +373,12 @@ function Menu({
                       key={e}
                       className={item}
                       disabled={trabajando}
-                      onClick={() =>
-                        empezar(async () => {
-                          await cambiarEstado(cuenta.id, e);
-                          setSubmenu(false);
-                          setAbierto(false);
-                        })
-                      }
+                      onClick={() => elegirEstado(e)}
                     >
                       {ESTADO_INFO[e].label}
+                      {esCierre(e) && (
+                        <span className="ml-1 text-neutral-600">…</span>
+                      )}
                     </button>
                   ))}
               </div>
@@ -333,6 +423,18 @@ function Menu({
             Eliminar
           </button>
         </div>
+      )}
+
+      {cerrando && (
+        <ModalCierre
+          cuenta={cuenta}
+          estado={cerrando}
+          onCerrar={() => setCerrando(null)}
+          onConfirmar={async (fecha) => {
+            await cambiarEstado(cuenta.id, cerrando, fecha);
+            setCerrando(null);
+          }}
+        />
       )}
     </div>
   );
@@ -544,6 +646,13 @@ export function TarjetaCuenta({
       <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3">
         <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
+
+        {cuenta.fecha_cierre && (
+          <Dato
+            label={cuenta.estado === "passed" ? "Pasada el" : "Quemada el"}
+            valor={fechaCorta(cuenta.fecha_cierre)}
+          />
+        )}
 
         {esFondeada ? (
           <>
