@@ -154,6 +154,7 @@ function Menu({
   onRetiros: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [submenu, setSubmenu] = useState(false);
   const [trabajando, empezar] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
   const archivada = cuenta.estado === "archivada";
@@ -163,6 +164,7 @@ function Menu({
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setAbierto(false);
+        setSubmenu(false);
       }
     };
     document.addEventListener("mousedown", h);
@@ -206,26 +208,43 @@ function Menu({
             </button>
           )}
 
-          <p className="px-3 pb-1 pt-2 text-xs uppercase tracking-wide text-neutral-600">
-            Cambiar estado
-          </p>
-          {ESTADOS_POR_TIPO[cuenta.tipo]
-            .filter((e) => e !== cuenta.estado)
-            .map((e) => (
-              <button
-                key={e}
-                className={item}
-                disabled={trabajando}
-                onClick={() =>
-                  empezar(async () => {
-                    await cambiarEstado(cuenta.id, e);
-                    setAbierto(false);
-                  })
-                }
-              >
-                {ESTADO_INFO[e].label}
-              </button>
-            ))}
+          {/* Submenú: se despliega al pasar el mouse por encima */}
+          <div
+            className="relative"
+            onMouseEnter={() => setSubmenu(true)}
+            onMouseLeave={() => setSubmenu(false)}
+          >
+            <button
+              className={`${item} flex items-center justify-between`}
+              onClick={() => setSubmenu((v) => !v)}
+            >
+              Cambiar estado
+              <span className="text-neutral-600">›</span>
+            </button>
+
+            {submenu && (
+              <div className="absolute right-full top-0 z-30 mr-1 w-40 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+                {ESTADOS_POR_TIPO[cuenta.tipo]
+                  .filter((e) => e !== cuenta.estado)
+                  .map((e) => (
+                    <button
+                      key={e}
+                      className={item}
+                      disabled={trabajando}
+                      onClick={() =>
+                        empezar(async () => {
+                          await cambiarEstado(cuenta.id, e);
+                          setSubmenu(false);
+                          setAbierto(false);
+                        })
+                      }
+                    >
+                      {ESTADO_INFO[e].label}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
 
           <div className="my-1 border-t border-neutral-800" />
           <button
@@ -421,6 +440,7 @@ export function TarjetaCuenta({
             valor={retirado > 0 ? plata(retirado) : "Todavía nada"}
           />
         )}
+
         <Dato
           label="Fee de activación"
           valor={
@@ -430,6 +450,50 @@ export function TarjetaCuenta({
           }
         />
       </div>
+
+      {/* Detalle de los retiros: cuánto y cuándo */}
+      {esFondeada && (retiros.length > 0 || cuenta.retiros_previos > 0) && (
+        <div className="mt-4 border-t border-neutral-800 pt-3">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <p className="text-xs uppercase tracking-wide text-neutral-600">
+              Retiros
+            </p>
+            <button
+              onClick={onRetiros}
+              className="text-xs text-neutral-600 transition hover:text-neutral-300"
+            >
+              Ver todos
+            </button>
+          </div>
+
+          <ul className="space-y-1">
+            {retiros.slice(0, 3).map((r) => (
+              <li
+                key={r.id}
+                className="flex items-baseline justify-between gap-3 text-xs"
+              >
+                <span className="text-neutral-500">{fechaCorta(r.fecha)}</span>
+                <span className="text-emerald-400">{plata(r.monto, 2)}</span>
+              </li>
+            ))}
+
+            {retiros.length > 3 && (
+              <li className="text-xs text-neutral-600">
+                y {retiros.length - 3} más
+              </li>
+            )}
+
+            {cuenta.retiros_previos > 0 && (
+              <li className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="text-neutral-500">Previos a la app</span>
+                <span className="text-neutral-400">
+                  {plata(cuenta.retiros_previos, 2)}
+                </span>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {cuenta.notas && (
         <p className="mt-4 border-t border-neutral-800 pt-3 text-xs text-neutral-500">
