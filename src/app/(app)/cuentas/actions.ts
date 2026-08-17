@@ -9,11 +9,13 @@ import {
   esCierre,
   ESTADOS,
   estadoValido,
+  MODOS_DRAWDOWN,
+  MODO_DRAWDOWN_DEFAULT,
+  type ModoDrawdown,
   nombresParaLote,
   tieneRetiro,
   TIPOS,
-  TIPOS_DRAWDOWN,
-  type TipoDrawdown,
+  trailea,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
   type Estado,
@@ -47,11 +49,11 @@ function entero(fd: FormData, campo: string) {
   return n === null ? null : Math.round(n);
 }
 
-function tipoDrawdown(fd: FormData) {
-  const v = String(fd.get("tipo_drawdown") ?? "");
-  return TIPOS_DRAWDOWN.includes(v as TipoDrawdown)
-    ? (v as TipoDrawdown)
-    : null;
+function modoDrawdown(fd: FormData) {
+  const v = String(fd.get("modo_drawdown") ?? "");
+  return MODOS_DRAWDOWN.includes(v as ModoDrawdown)
+    ? (v as ModoDrawdown)
+    : MODO_DRAWDOWN_DEFAULT;
 }
 
 function datosDesdeForm(fd: FormData) {
@@ -90,6 +92,40 @@ function datosDesdeForm(fd: FormData) {
     };
   }
 
+  // Drawdown: el piso congelado y el pico solo existen si el piso trailea.
+  const modo_drawdown = modoDrawdown(fd);
+  const drawdown_maximo_monto = numero(fd, "drawdown_maximo_monto");
+  const piso_congelado = trailea(modo_drawdown)
+    ? numero(fd, "piso_congelado")
+    : null;
+
+  if (piso_congelado !== null) {
+    if (piso_congelado <= 0) {
+      return { error: "El piso congelado tiene que ser mayor a 0." };
+    }
+    // Trabar el piso por debajo de donde arranca no significa nada: el
+    // trailing solo sube, así que nunca llegaría a ese número.
+    const pisoInicial =
+      drawdown_maximo_monto === null
+        ? null
+        : tamano_cuenta - drawdown_maximo_monto;
+
+    if (pisoInicial !== null && piso_congelado < pisoInicial) {
+      return {
+        error:
+          "El piso congelado no puede ser menor al piso con el que arranca la cuenta.",
+      };
+    }
+  }
+
+  // El pico nunca puede estar por debajo del balance ni del tamaño: si no,
+  // el piso daría más bajo del real y la cuenta parecería más sana.
+  const pico_semilla = Math.max(
+    numero(fd, "pico_semilla") ?? 0,
+    balance === null ? tamano_cuenta : balance,
+    tamano_cuenta
+  );
+
   const umbral_saludable_pct =
     numero(fd, "umbral_saludable_pct") ?? UMBRAL_SALUDABLE_DEFAULT;
   const umbral_precaucion_pct =
@@ -114,7 +150,10 @@ function datosDesdeForm(fd: FormData) {
     fecha_inicio,
     estado,
     drawdown_maximo_pct: numero(fd, "drawdown_maximo_pct"),
-    drawdown_maximo_monto: numero(fd, "drawdown_maximo_monto"),
+    drawdown_maximo_monto,
+    modo_drawdown,
+    piso_congelado,
+    pico_semilla,
     profit_split: conRetiro ? numero(fd, "profit_split") : null,
     objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
     balance_objetivo: conRetiro ? balance_objetivo : null,
@@ -132,7 +171,6 @@ function datosDesdeForm(fd: FormData) {
     // La regla de consistencia aplica a los dos tipos.
     regla_consistencia: numero(fd, "regla_consistencia"),
     // El resto es propio de la evaluación.
-    tipo_drawdown: conRetiro ? null : tipoDrawdown(fd),
     precio: conRetiro ? null : numero(fd, "precio"),
     cantidad_contratos: conRetiro ? null : entero(fd, "cantidad_contratos"),
     umbral_saludable_pct,
@@ -150,7 +188,11 @@ function datosDesdeForm(fd: FormData) {
   // al profit target por definición.
   if (estado === "passed") {
     const alPasar = balanceAlPasar(datos);
-    if (alPasar !== null) datos.balance_actual = alPasar;
+    if (alPasar !== null) {
+      datos.balance_actual = alPasar;
+      // Ese balance también es un máximo nuevo: el piso lo acompaña.
+      datos.pico_semilla = Math.max(datos.pico_semilla, alPasar);
+    }
   }
 
   return { datos };
@@ -170,9 +212,26 @@ export async function guardarCuenta(
 
   // Editar: siempre una sola cuenta, la cantidad no aplica.
   if (id) {
+    // El pico solo sube. Si el usuario no lo tocó, el guardado no puede
+    // borrar el máximo que la cuenta ya había alcanzado — si no, el piso
+    // de una cuenta trailing bajaría solo por abrir y guardar el modal.
+    const { data: previa } = await supabase
+      .from("cuentas_fondeo")
+      .select("pico_semilla")
+      .eq("id", id)
+      .single();
+
+    const datos = {
+      ...parsed.datos,
+      pico_semilla: Math.max(
+        parsed.datos.pico_semilla,
+        previa?.pico_semilla ?? 0
+      ),
+    };
+
     const { error } = await supabase
       .from("cuentas_fondeo")
-      .update(parsed.datos)
+      .update(datos)
       .eq("id", id);
 
     if (error) return { error: mensajeDeError(error.message) };
@@ -235,6 +294,7 @@ export async function cambiarEstado(
   const cambios: {
     estado: Estado;
     balance_actual?: number;
+    pico_semilla?: number;
     fecha_cierre?: string | null;
   } = { estado };
 
@@ -251,7 +311,7 @@ export async function cambiarEstado(
     const { data: cuenta } = await supabase
       .from("cuentas_fondeo")
       .select(
-        "tipo, tamano_cuenta, balance_actual, profit_target_monto, fecha_inicio",
+        "tipo, tamano_cuenta, balance_actual, profit_target_monto, fecha_inicio, pico_semilla",
       )
       .eq("id", id)
       .single();
@@ -267,7 +327,10 @@ export async function cambiarEstado(
 
     if (estado === "passed") {
       const balance = balanceAlPasar(cuenta);
-      if (balance !== null) cambios.balance_actual = balance;
+      if (balance !== null) {
+        cambios.balance_actual = balance;
+        cambios.pico_semilla = Math.max(cuenta.pico_semilla ?? 0, balance);
+      }
     }
   }
 
@@ -300,9 +363,21 @@ export async function actualizarBalance(
   if (balance === null) return { error: "Escribí un número." };
 
   const supabase = createClient();
+
+  // El pico solo sube: si el balance nuevo es un máximo, el piso de una
+  // cuenta trailing sube con él; si el balance baja, el piso NO baja.
+  const { data: cuenta } = await supabase
+    .from("cuentas_fondeo")
+    .select("pico_semilla")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase
     .from("cuentas_fondeo")
-    .update({ balance_actual: balance })
+    .update({
+      balance_actual: balance,
+      pico_semilla: Math.max(cuenta?.pico_semilla ?? 0, balance),
+    })
     .eq("id", id);
 
   if (error) return { error: mensajeDeError(error.message) };
@@ -407,7 +482,7 @@ function mensajeDeError(mensaje: string) {
     return "La tabla no tiene permisos para la API. Corré supabase/exponer_tablas.sql en el SQL Editor.";
   }
   if (mensaje.includes("does not exist") || mensaje.includes("schema cache")) {
-    return "Falta correr alguna migración de la carpeta supabase/ en el SQL Editor de Supabase (la última es 006_fecha_cierre.sql).";
+    return "Falta correr alguna migración de la carpeta supabase/ en el SQL Editor de Supabase (la última es 008_drawdown_trailing.sql).";
   }
   return mensaje;
 }

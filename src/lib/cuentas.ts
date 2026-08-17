@@ -157,15 +157,57 @@ export const SALUD_INFO: Record<Salud, Chip> = {
 export const UMBRAL_SALUDABLE_DEFAULT = 3;
 export const UMBRAL_PRECAUCION_DEFAULT = 2;
 
-/* ---------- Tipo de drawdown (evaluaciones) ---------- */
+/* ---------- Modo de drawdown ---------- */
 
-export const TIPOS_DRAWDOWN = ["trailing", "eod"] as const;
-export type TipoDrawdown = (typeof TIPOS_DRAWDOWN)[number];
+/**
+ * Cómo se mueve el piso de la cuenta. Aplica a los dos tipos de cuenta
+ * (antes era `tipo_drawdown` y solo existía en las evaluaciones).
+ *
+ * Ojo con el malentendido fácil: **EOD también trailea**. La diferencia
+ * con `trailing` no es que uno se mueva y el otro no, sino qué pico sigue:
+ * el cierre del día o el flotante intradía.
+ */
+export const MODOS_DRAWDOWN = ["estatico", "eod", "trailing"] as const;
+export type ModoDrawdown = (typeof MODOS_DRAWDOWN)[number];
 
-export const TIPO_DRAWDOWN_INFO: Record<TipoDrawdown, string> = {
-  trailing: "Trailing (sigue al pico)",
-  eod: "EOD (cierre del día)",
+export const MODO_DRAWDOWN_INFO: Record<
+  ModoDrawdown,
+  { label: string; corto: string; ayuda: string }
+> = {
+  estatico: {
+    label: "Estático (piso fijo)",
+    corto: "Estático",
+    ayuda: "El piso no se mueve nunca: tamaño de cuenta menos el drawdown.",
+  },
+  eod: {
+    label: "EOD (sigue el cierre del día)",
+    corto: "EOD",
+    ayuda:
+      "El piso sube con el balance más alto al cierre del día, y no vuelve a bajar.",
+  },
+  trailing: {
+    label: "Trailing (sigue el flotante intradía)",
+    corto: "Trailing",
+    ayuda:
+      "El piso sube con el punto más alto que tocaste dentro del día, aunque después cierres más abajo.",
+  },
 };
+
+/**
+ * Modo de una cuenta nueva. Se elige trailing y no estático a propósito:
+ * una cuenta trailing marcada como estática muestra MÁS colchón del real
+ * y te podés quemar creyendo que estabas bien; al revés el error es
+ * pesimista y se nota enseguida.
+ */
+export const MODO_DRAWDOWN_DEFAULT: ModoDrawdown = "trailing";
+
+/**
+ * Si el piso persigue al balance. Los dos modos que no son estáticos lo
+ * hacen; solo cambia qué pico miran.
+ */
+export function trailea(modo: ModoDrawdown) {
+  return modo !== "estatico";
+}
 
 /* ---------- La cuenta ---------- */
 
@@ -190,9 +232,21 @@ export type Cuenta = {
   umbral_saludable_monto: number | null;
   umbral_precaucion_pct: number;
   umbral_precaucion_monto: number | null;
+  /** Cómo se mueve el piso: estático, EOD o trailing. */
+  modo_drawdown: ModoDrawdown;
+  /**
+   * Piso final donde el trailing se traba. En Apex, `tamaño + 100`
+   * (50.100 en una cuenta de 50k). null = no se congela nunca.
+   */
+  piso_congelado: number | null;
+  /**
+   * Balance más alto que alcanzó la cuenta. Hoy se actualiza cada vez que
+   * sube el balance; con el Paso 5b pasa a ser solo la semilla (el pico
+   * previo a usar la app) y el resto se deriva de los resultados diarios.
+   */
+  pico_semilla: number;
   /** Solo evaluaciones: las reglas y el costo de la evaluación. */
   regla_consistencia: number | null;
-  tipo_drawdown: TipoDrawdown | null;
   precio: number | null;
   cantidad_contratos: number | null;
   /** Lo ya retirado antes de empezar a usar la app. */
@@ -274,6 +328,18 @@ export function pctDesdeMonto(tamano: number, monto: number) {
   return (monto / tamano) * 100;
 }
 
+/**
+ * El drawdown estático se puede pensar de las dos formas: "me puedo comer
+ * 2.500" o "no puedo bajar de 47.500". Son el mismo dato.
+ */
+export function pisoDesdeMonto(tamano: number, monto: number) {
+  return tamano - monto;
+}
+
+export function montoDesdePiso(tamano: number, piso: number) {
+  return tamano - piso;
+}
+
 /* ---------- Cálculos de la cuenta ---------- */
 
 /** Ganancia (o pérdida) acumulada desde el balance base. */
@@ -283,10 +349,65 @@ export function variacion(cuenta: Cuenta) {
   return { monto, pct };
 }
 
-/** Piso de la cuenta: hasta dónde puede caer antes de quemarse. */
+/**
+ * Balance más alto que tocó la cuenta.
+ *
+ * Se toma el máximo entre lo guardado, el balance de hoy y el tamaño de
+ * cuenta: así el pico nunca baja, que es justo lo que hace que un retiro
+ * no le mueva el piso a la cuenta.
+ */
+export function picoDeCuenta(cuenta: Cuenta): number {
+  return Math.max(
+    cuenta.pico_semilla ?? 0,
+    cuenta.balance_actual,
+    cuenta.tamano_cuenta
+  );
+}
+
+/**
+ * Piso de la cuenta: hasta dónde puede caer antes de quemarse.
+ *
+ *   piso = min(pico − drawdown, piso_congelado ?? ∞)
+ *
+ * En estático el pico no juega y el piso sale del tamaño de cuenta. En EOD
+ * y en trailing el piso persigue al pico, hasta trabarse en el piso
+ * congelado si la firm lo tiene (Apex: tamaño + 100).
+ */
 export function pisoDrawdown(cuenta: Cuenta): number | null {
   if (cuenta.drawdown_maximo_monto === null) return null;
-  return cuenta.tamano_cuenta - cuenta.drawdown_maximo_monto;
+
+  if (!trailea(cuenta.modo_drawdown)) {
+    return cuenta.tamano_cuenta - cuenta.drawdown_maximo_monto;
+  }
+
+  const piso = picoDeCuenta(cuenta) - cuenta.drawdown_maximo_monto;
+
+  return cuenta.piso_congelado === null
+    ? piso
+    : Math.min(piso, cuenta.piso_congelado);
+}
+
+/** Si el trailing ya llegó a su tope y el piso quedó fijo para siempre. */
+export function estaCongelado(cuenta: Cuenta) {
+  if (!trailea(cuenta.modo_drawdown)) return false;
+  if (cuenta.piso_congelado === null) return false;
+  if (cuenta.drawdown_maximo_monto === null) return false;
+
+  return (
+    picoDeCuenta(cuenta) - cuenta.drawdown_maximo_monto >= cuenta.piso_congelado
+  );
+}
+
+/**
+ * Qué balance hay que tocar para que el trailing se congele. En una Apex
+ * de 50k con 2.000 de DD y piso congelado en 50.100, son 52.100.
+ */
+export function balanceDeCongelamiento(cuenta: Cuenta): number | null {
+  if (!trailea(cuenta.modo_drawdown)) return null;
+  if (cuenta.piso_congelado === null) return null;
+  if (cuenta.drawdown_maximo_monto === null) return null;
+
+  return cuenta.piso_congelado + cuenta.drawdown_maximo_monto;
 }
 
 /**
@@ -313,6 +434,30 @@ export function salud(cuenta: Cuenta): Salud | null {
   if (c.pct >= cuenta.umbral_saludable_pct) return "saludable";
   if (c.pct >= cuenta.umbral_precaucion_pct) return "precaucion";
   return "critico";
+}
+
+/** El umbral de precaución en $, venga cargado en $ o en %. */
+export function umbralPrecaucionMonto(cuenta: Cuenta) {
+  return (
+    cuenta.umbral_precaucion_monto ??
+    montoDesdePct(cuenta.tamano_cuenta, cuenta.umbral_precaucion_pct)
+  );
+}
+
+/**
+ * Cuánto se puede retirar sin quedar en Crítico.
+ *
+ * En Apex el retiro **resta del balance pero no mueve el piso**: una vez
+ * congelado el drawdown, cada dólar que sacás es un dólar menos de colchón.
+ *
+ * Hoy no se muestra en ningún lado: se sacó de la tarjeta el 2026-08-17
+ * porque ensuciaba. Queda acá como candidata a las alertas del Paso 7.
+ */
+export function retiroMaximoSeguro(cuenta: Cuenta): number | null {
+  const piso = pisoDrawdown(cuenta);
+  if (piso === null) return null;
+
+  return Math.max(0, cuenta.balance_actual - piso - umbralPrecaucionMonto(cuenta));
 }
 
 /**

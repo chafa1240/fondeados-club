@@ -92,6 +92,15 @@ Pasos 3 y 4 también hechos (2026-08-16):
   Los cálculos viven en `src/lib/cuentas.ts`, separados de las pantallas,
   para reusarlos en la app móvil más adelante.
 
+**Rediseño del drawdown** hecho el 2026-08-17 (Paso 4c del roadmap):
+modos estático / EOD / trailing, congelamiento del piso y pico histórico.
+Está en la sección **Drawdown** al final de este archivo.
+`supabase/008_drawdown_trailing.sql` **ya se corrió** en Supabase
+(2026-08-17) y se verificó en la app con las cuentas reales de Apex. La
+**009** corrige el drawdown que la 008 asumió mal (5% en vez de 4%). El
+**máximo del día** (el otro pedazo del mismo diseño) entra recién con el
+Paso 5b, porque vive en la fila diaria.
+
 Próximo paso: Paso 5 del roadmap — gastos y payouts. Después viene el
 **Paso 5b: resultados diarios (TP/SL)**, agregado al MVP el 2026-08-16 —
 una fila por día y cuenta con cantidad de TP, cantidad de SL y el neto del
@@ -236,6 +245,9 @@ acción; borrar un retiro se lo devuelve. Están en `registrarRetiro()` y
 evaluaciones**; en fondeadas se guardan en NULL. El `fee_activacion` es al
 revés: solo fondeadas.
 
+⚠️ `tipo_drawdown` queda reemplazado por `modo_drawdown` y pasa a aplicar
+a **los dos** tipos de cuenta — ver la sección **Drawdown** más abajo.
+
 **Tarjeta de dos caras** (`src/components/cuentas/tarjeta-cuenta.tsx`):
 el frente muestra lo mínimo (balance, anillo, drawdown máx. y objetivo /
 profit target, más los últimos 3 retiros); el botón "+ Información…" la da
@@ -255,3 +267,186 @@ es de una cuenta), `monto`, `fecha`, `notas`.
 Las 3 tablas tienen RLS activado con policies `auth.uid() = user_id` para
 select/insert/update/delete — cada usuario ve y edita solo lo suyo.
 `user_id` default `auth.uid()` en las 3 tablas.
+
+## Drawdown (definido e implementado 2026-08-17)
+
+Rediseño del drawdown. Implementado en `supabase/008_drawdown_trailing.sql`
+(la 006 y la 007 ya estaban usadas), `src/lib/cuentas.ts`,
+`modal-cuenta.tsx`, `tarjeta-cuenta.tsx` y `cuentas/actions.ts`.
+**Falta correr la migración 008 en el SQL Editor de Supabase.**
+
+Lo único que queda pendiente de esta tanda es el **máximo del día**, que
+vive en la fila diaria y por lo tanto entra recién con el Paso 5b.
+
+### El problema que resuelve
+Hoy `pisoDrawdown()` calcula `tamano_cuenta − drawdown_maximo_monto`: un
+piso **fijo, medido desde el balance base**. Eso sirve solo para un
+drawdown estático. En un trailing el piso persigue al pico del balance, y
+en Apex además **se congela**: en una cuenta de 50k con 2.000 de DD, al
+tocar 52.100 de balance el piso queda clavado en 50.100 y no se mueve
+nunca más. Sin forma de expresar eso, la única manera de que el número dé
+parecido era cargar el drawdown en **0%** — que rompe el dato real y sigue
+estando mal durante toda la fase en que el trailing todavía corre.
+
+### Los tres modos
+`modo_drawdown`: `estatico` | `eod` | `trailing`, y aplica a **fondeadas y
+evaluaciones** por igual (reemplaza a `tipo_drawdown`, que era solo de
+evaluaciones y solo tenía dos valores).
+
+Ojo con un malentendido fácil: **EOD también trailea**. La diferencia con
+`trailing` no es que uno se mueva y el otro no, es **qué pico manda**:
+
+| Modo | Pico que sigue | ¿Sale de los resultados diarios? |
+|---|---|---|
+| `estatico` | ninguno, piso = tamaño − dd | no aplica |
+| `eod` | el máximo de los **cierres diarios** | **sí, exacto** |
+| `trailing` | el máximo del **flotante intradía** | solo si se carga el máximo del día |
+
+### La fórmula
+Una sola para los tres; el modo solo decide qué candidatos entran al pico:
+
+```
+piso = min(pico − dd, piso_congelado ?? ∞)
+```
+
+`piso_congelado` (nullable): el piso final donde el trailing se traba. En
+Apex = `tamaño + 100` (50.100 en una cuenta de 50k). `null` = el trailing
+no se congela nunca. En las **evaluaciones** de Apex no frena en +100 sino
+al llegar al balance del profit target. Se carga **como balance**, no como % — es el número
+que el usuario conoce y se explica solo ("hasta acá puede caer, pase lo
+que pase").
+
+### Formulario
+Desplegable de tres opciones + los campos de siempre (`%` y `USD`
+sincronizados entre sí, como ya funciona hoy) + un tercer campo cuyo
+significado depende del modo:
+
+- `estatico` → tercer campo = **el piso** (fijo, se puede cargar a mano:
+  `piso = tamaño − monto`, `monto = tamaño − piso`).
+- `eod` / `trailing` → tercer campo = **el piso congelado**. El piso
+  actual NO se carga a mano: se muestra calculado, en gris, no editable.
+  Dejar cargar el piso en un modo que trailea es el mismo parche que el
+  0%, con mejor interfaz.
+
+### Nada de `balance_pico` guardado en la cuenta
+El pico es un **máximo corriente de la serie**, y si se guarda como
+columna queda envenenado el día que se edite o borre una fila vieja: al
+corregir historia el máximo puede *bajar*, y una columna que solo sabe
+subir nunca se entera.
+
+Modelo correcto:
+- la cuenta guarda **la semilla** (balance y pico del día que se cargó la
+  cuenta en la app, para cuentas con historia previa a Fondeados Club);
+- la tabla diaria guarda **los deltas**;
+- pico y piso se **calculan** recorriendo la serie, en `src/lib/cuentas.ts`.
+
+Siempre consistente y gratis al editar historia. Si algún día pesa se
+cachea el derivado — pero no se guarda una verdad paralela.
+
+### Máximo del día (solo `trailing`)
+Los resultados diarios mueven el **balance**; el máximo del día mueve
+**solo el piso**. Son dos cosas separadas y no se tocan: un máximo mal
+cargado no puede ensuciar el balance, el P&L ni el Funding Manager.
+
+Campo `pico_dia` (nullable) en la fila diaria, **cargado como delta**
+("+800", no "51.300" — es lo que uno recuerda). Reglas:
+
+- **Aparece solo en cuentas `trailing` y solo mientras el trailing siga
+  vivo.** Una vez congelada la cuenta el flotante deja de importar para
+  siempre y el campo desaparece solo. En Apex el trailing corre apenas
+  desde el balance base hasta el congelamiento (2.600 USD en una de 50k):
+  es un campo que acompaña una fase corta, no una feature permanente.
+- **Va también en los días perdedores**, y ese es el caso que más importa:
+  abriste +600 de flotante, se dio vuelta y cerraste −300. El balance baja
+  300 pero el piso ya subió 600 y no vuelve. Si solo apareciera en días
+  verdes, justo el caso que más te acerca a quemarte quedaría sin registrar.
+- **Vacío = "se usa el cierre"**, no cero. Tiene que leerse así en pantalla
+  (placeholder) o el usuario va a sentir que debe llenarlo todos los días.
+- **Validación suave**: si el máximo cargado es menor al cierre del día es
+  un error de tipeo. Se toma el mayor de los dos y se avisa, sin bloquear
+  el guardado.
+- Solo cambia algo si **supera el pico histórico**; los demás días da igual
+  cargarlo o no.
+
+### Reglas de Apex (verificadas en su documentación, 2026-08-17)
+Se chequearon contra el help center de Apex porque los números que
+teníamos de memoria estaban mal (se asumía 2.500 de drawdown en la 50k).
+
+- **Drawdown por tamaño** — 25k: $1.000 · 50k: $2.000 · 100k: $3.000 ·
+  150k: $4.000. **No es un % fijo** (4% / 4% / 3% / 2,67%): el dato que
+  manda es el monto en dólares, el % es solo una forma de mostrarlo.
+- **Intraday trailing**: sigue el *Peak Balance*, que **incluye ganancias
+  no realizadas** — si un trade abierto lleva la cuenta a un máximo nuevo,
+  el umbral sube en el momento aunque no cierres la posición. Nunca baja.
+  Es exactamente el agujero que tapa el **máximo del día**.
+- **EOD**: recalcula una vez por día a las **16:59:59 ET** sobre el balance
+  de cierre; en los días perdedores no se mueve.
+- **Dónde frena el trailing**: en las Performance Accounts, en
+  `Starting Balance + $100`. En las evaluaciones Rithmic/Wealthcharts, al
+  llegar al balance del profit target. En Tradovate **no frena nunca**
+  (ahí `piso_congelado` va en NULL).
+- Tocar el umbral liquida las posiciones y cierra la cuenta.
+
+Fuentes: `apextraderfunding.com/help-center/intraday-trailing-drawdown-accounts/intraday-trailing-drawdown-explained/`
+y `.../eod-trailing-drawdown-accounts/eod-drawdown-explained/`.
+
+### Limitación aceptada
+En `trailing`, si el usuario no carga el máximo del día, el piso queda
+**estimado y optimista** (muestra más colchón del real). No se arregla en
+el MVP: para eso haría falta conexión al broker, que ya está fuera de
+alcance. El campo manual tapa el caso.
+
+### Consecuencias que ya se verificaron contra el código actual
+- **Retiros** (regla de Apex confirmada por el usuario, 2026-08-17): un
+  retiro **resta del balance**, pero el drawdown **no se mueve**: una vez
+  alcanzados los 52.600 el piso queda fijo en 50.100 para siempre, retires
+  o no. O sea que retirar **se come colchón uno a uno**.
+  `registrarRetiro()` ya descuenta del balance, y como el pico es un
+  máximo monótono el piso no baja: el modelo nuevo lo representa bien sin
+  código extra. Hoy, con piso fijo en `tamaño − dd`, la app te deja creer
+  que tenés aire que no tenés.
+  Consecuencia aprovechable: `retiroMaximoSeguro()` calcula
+  `balance − piso − umbral_precaucion`. **No se muestra en la tarjeta**
+  (se probó el 2026-08-17 y no gustó: ensuciaba). La función queda como
+  candidata a las alertas del Paso 7, no a un texto fijo en la tarjeta.
+- `colchon()`, `salud()` y el semáforo cuelgan todos de `pisoDrawdown()`,
+  así que se arreglan solos al cambiar esa función.
+- Del mismo recorrido de la serie salen balance, pico, piso, colchón,
+  semáforo y el gráfico **balance vs. piso** día a día — que con el modelo
+  viejo era una línea recta inútil.
+
+### Migración
+`supabase/008_drawdown_trailing.sql`:
+- agrega `modo_drawdown` (not null, default `trailing`), `piso_congelado`
+  y `pico_semilla` (not null);
+- backfillea `modo_drawdown` con el viejo `tipo_drawdown` y el resto en
+  `trailing`;
+- arregla las fondeadas cargadas con **0%** de drawdown (el parche que
+  esto viene a sacar): les pone 5% del tamaño, `trailing` y
+  `piso_congelado = tamaño + 100`. ⚠️ **Revisar a mano después de
+  correrla**: si alguna de esas cuentas no era de Apex, hay que
+  corregirle el drawdown desde la app;
+- borra `tipo_drawdown`, para no dejar dos fuentes de verdad.
+
+**Por qué el default es `trailing` y no `estatico`**: una cuenta trailing
+marcada como estática muestra **más** colchón del real y te podés quemar
+creyendo que estabas bien. Al revés, el error es pesimista y se nota
+enseguida. Entre los dos, se elige el que no miente para el lado peligroso.
+
+### Cómo quedó en el código
+- `picoDeCuenta()` — máximo entre el pico guardado, el balance y el tamaño.
+- `pisoDrawdown()` — la fórmula de arriba.
+- `estaCongelado()` / `balanceDeCongelamiento()` — para los textos de la
+  tarjeta ("se congela cuando el balance toque $52.600").
+- `retiroMaximoSeguro()` — `balance − piso − umbral de precaución`.
+- La tarjeta muestra en el frente el **colchón** con la etiqueta
+  "Drawdown: $1.500 (3,0%)" — cuánta plata queda hasta tocar el piso, que
+  es lo que se mira todos los días. El **drawdown máximo** (el número que
+  no cambia) se mudó al dorso el 2026-08-17.
+- `pisoDesdeMonto()` / `montoDesdePiso()` — el tercer campo del modo
+  estático.
+- El pico solo sube: se actualiza en `actualizarBalance()`, al guardar el
+  modal (tomando el máximo con lo que ya había) y al marcar una evaluación
+  como pasada. Nunca baja solo — para bajarlo hay que editar el campo
+  **Pico histórico** a mano, que es la salida cuando cargaste un balance
+  equivocado.

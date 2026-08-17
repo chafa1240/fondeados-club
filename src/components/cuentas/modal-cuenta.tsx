@@ -10,17 +10,23 @@ import {
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   FIRMS_SUGERIDAS,
+  MODOS_DRAWDOWN,
+  MODO_DRAWDOWN_DEFAULT,
+  MODO_DRAWDOWN_INFO,
   TIPOS,
-  TIPOS_DRAWDOWN,
-  TIPO_DRAWDOWN_INFO,
   TIPO_INFO,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
   montoDesdePct,
+  montoDesdePiso,
   pctDesdeMonto,
+  pisoDesdeMonto,
+  plata,
   tieneRetiro,
+  trailea,
   type Cuenta,
   type Estado,
+  type ModoDrawdown,
   type Tipo,
 } from "@/lib/cuentas";
 
@@ -188,6 +194,18 @@ export function ModalCuenta({
     texto(cuenta?.drawdown_maximo_pct),
     texto(cuenta?.drawdown_maximo_monto)
   );
+
+  // Drawdown: cómo se mueve el piso, dónde se traba, y desde qué pico.
+  const [modo, setModo] = useState<ModoDrawdown>(
+    cuenta?.modo_drawdown ?? MODO_DRAWDOWN_DEFAULT
+  );
+  const [pisoCongelado, setPisoCongelado] = useState(
+    texto(cuenta?.piso_congelado)
+  );
+  const [pico, setPico] = useState(texto(cuenta?.pico_semilla));
+  // Controlado (antes no lo era) para poder mostrar el piso calculado en
+  // vivo: sin el balance no se sabe de qué pico venimos.
+  const [balance, setBalance] = useState(texto(cuenta?.balance_actual));
   const saludable = useParPctMonto(
     texto(cuenta?.umbral_saludable_pct ?? UMBRAL_SALUDABLE_DEFAULT),
     texto(cuenta?.umbral_saludable_monto)
@@ -233,6 +251,48 @@ export function ModalCuenta({
     if (!estadosPosibles.includes(estado)) setEstado(estadosPosibles[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo]);
+
+  /* ----- Drawdown: piso calculado en vivo ----- */
+
+  const ddMonto = dd.monto === "" ? null : aNumero(dd.monto);
+  const balanceNum = balance === "" ? tamanoNum : aNumero(balance) || 0;
+  const picoNum = Math.max(aNumero(pico) || 0, balanceNum, tamanoNum);
+  const congeladoNum = pisoCongelado === "" ? null : aNumero(pisoCongelado);
+
+  // El piso estático se muestra como balance ("no puede bajar de X"), que
+  // es el mismo dato que el drawdown en $, visto al revés.
+  const pisoEstatico =
+    dd.monto === "" || ddMonto === null || Number.isNaN(ddMonto) || sinTamano
+      ? ""
+      : String(redondear(pisoDesdeMonto(tamanoNum, ddMonto)));
+
+  function cambiarPisoEstatico(v: string) {
+    if (v === "") return dd.desdeMonto("", tamanoNum);
+    const n = aNumero(v);
+    if (Number.isNaN(n)) return;
+    dd.desdeMonto(String(redondear(montoDesdePiso(tamanoNum, n))), tamanoNum);
+  }
+
+  const pisoActual =
+    ddMonto === null || Number.isNaN(ddMonto) || sinTamano
+      ? null
+      : !trailea(modo)
+        ? tamanoNum - ddMonto
+        : congeladoNum === null || Number.isNaN(congeladoNum)
+          ? picoNum - ddMonto
+          : Math.min(picoNum - ddMonto, congeladoNum);
+
+  const congelamiento =
+    !trailea(modo) ||
+    congeladoNum === null ||
+    Number.isNaN(congeladoNum) ||
+    ddMonto === null ||
+    Number.isNaN(ddMonto)
+      ? null
+      : congeladoNum + ddMonto;
+
+  const congelada =
+    congelamiento !== null && picoNum >= congelamiento;
 
   // Cerrar al guardar bien, y con la tecla Escape.
   useEffect(() => {
@@ -388,30 +448,6 @@ export function ModalCuenta({
               />
             </Campo>
 
-            <Campo label="Drawdown máximo (%)" ayuda="Se completa solo con el monto">
-              <input
-                name="drawdown_maximo_pct"
-                inputMode="decimal"
-                disabled={sinTamano}
-                placeholder="4"
-                value={dd.pct}
-                onChange={(e) => dd.desdePct(e.target.value, tamanoNum)}
-                className={INPUT}
-              />
-            </Campo>
-
-            <Campo label="Drawdown máximo (USD)" ayuda="Se completa solo con el %">
-              <input
-                name="drawdown_maximo_monto"
-                inputMode="decimal"
-                disabled={sinTamano}
-                placeholder="2000"
-                value={dd.monto}
-                onChange={(e) => dd.desdeMonto(e.target.value, tamanoNum)}
-                className={INPUT}
-              />
-            </Campo>
-
             {esFondeada && (
               <Campo label="Profit split (%)">
                 <input
@@ -442,13 +478,136 @@ export function ModalCuenta({
                 name="balance_actual"
                 inputMode="decimal"
                 placeholder="Igual al tamaño de cuenta"
-                defaultValue={texto(cuenta?.balance_actual)}
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
                 className={INPUT}
               />
             </Campo>
           </div>
 
           {sinTamano && <FaltaTamano />}
+
+          {/* Drawdown: el bloque más importante de la cuenta */}
+          <Titulo>Drawdown</Titulo>
+          {sinTamano && <FaltaTamano />}
+
+          <Campo label="Cómo se mueve el piso" ayuda={MODO_DRAWDOWN_INFO[modo].ayuda}>
+            <select
+              name="modo_drawdown"
+              value={modo}
+              onChange={(e) => setModo(e.target.value as ModoDrawdown)}
+              className={INPUT}
+            >
+              {MODOS_DRAWDOWN.map((m) => (
+                <option key={m} value={m}>
+                  {MODO_DRAWDOWN_INFO[m].label}
+                </option>
+              ))}
+            </select>
+          </Campo>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo label="Drawdown máximo (%)" ayuda="Se completa solo con el monto">
+              <input
+                name="drawdown_maximo_pct"
+                inputMode="decimal"
+                disabled={sinTamano}
+                placeholder="5"
+                value={dd.pct}
+                onChange={(e) => dd.desdePct(e.target.value, tamanoNum)}
+                className={INPUT}
+              />
+            </Campo>
+
+            <Campo label="Drawdown máximo (USD)" ayuda="Se completa solo con el %">
+              <input
+                name="drawdown_maximo_monto"
+                inputMode="decimal"
+                disabled={sinTamano}
+                placeholder="2500"
+                value={dd.monto}
+                onChange={(e) => dd.desdeMonto(e.target.value, tamanoNum)}
+                className={INPUT}
+              />
+            </Campo>
+
+            {/* El tercer campo cambia de significado según el modo: en
+                estático es el piso (que es fijo y se puede cargar), y en
+                los modos que trailean es el piso congelado. El piso actual
+                de una cuenta que trailea NO se carga a mano: se calcula. */}
+            {modo === "estatico" ? (
+              <Campo
+                label="No puede bajar de (USD)"
+                ayuda="Otra forma de decir lo mismo: tamaño de cuenta menos el drawdown"
+              >
+                <input
+                  inputMode="decimal"
+                  disabled={sinTamano}
+                  placeholder="47500"
+                  value={pisoEstatico}
+                  onChange={(e) => cambiarPisoEstatico(e.target.value)}
+                  className={INPUT}
+                />
+              </Campo>
+            ) : (
+              <>
+                <Campo
+                  label="Piso congelado (USD)"
+                  ayuda="Dónde se traba el trailing. Vacío = no se congela nunca."
+                >
+                  <input
+                    name="piso_congelado"
+                    inputMode="decimal"
+                    disabled={sinTamano}
+                    placeholder="50100"
+                    value={pisoCongelado}
+                    onChange={(e) => setPisoCongelado(e.target.value)}
+                    className={INPUT}
+                  />
+                  {!sinTamano && (
+                    <button
+                      type="button"
+                      onClick={() => setPisoCongelado(String(tamanoNum + 100))}
+                      className="mt-1.5 rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-400 transition hover:border-neutral-600 hover:text-neutral-200"
+                    >
+                      Usar el de Apex ({plata(tamanoNum + 100)})
+                    </button>
+                  )}
+                </Campo>
+
+                <Campo
+                  label="Pico histórico (USD)"
+                  ayuda="El balance más alto que tocó la cuenta. Vacío = el balance actual."
+                >
+                  <input
+                    name="pico_semilla"
+                    inputMode="decimal"
+                    placeholder={tamano || "50000"}
+                    value={pico}
+                    onChange={(e) => setPico(e.target.value)}
+                    className={INPUT}
+                  />
+                </Campo>
+              </>
+            )}
+          </div>
+
+          {/* El piso calculado, en vivo: es el número del que después
+              cuelgan el colchón y el semáforo. */}
+          {pisoActual !== null && (
+            <p className="-mt-1 rounded-lg border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-xs text-neutral-400">
+              Hoy la cuenta se quema si baja de{" "}
+              <span className="font-medium text-neutral-200">
+                {plata(pisoActual)}
+              </span>
+              {modo !== "estatico" &&
+                (congelada ? (
+                  <span className="text-emerald-400"> · ya está congelado</span>
+                ) : congelamiento !== null ? (
+                  <> · se congela cuando el balance toque {plata(congelamiento)}</>
+                ) : null)}
+            </p>
+          )}
 
           {/* Objetivo de retiro — solo tiene sentido en cuentas fondeadas */}
           {esFondeada && (
@@ -636,21 +795,6 @@ export function ModalCuenta({
             <>
               <Titulo>Reglas de la evaluación</Titulo>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Campo label="Tipo de drawdown">
-                  <select
-                    name="tipo_drawdown"
-                    defaultValue={cuenta?.tipo_drawdown ?? ""}
-                    className={INPUT}
-                  >
-                    <option value="">Sin definir</option>
-                    {TIPOS_DRAWDOWN.map((t) => (
-                      <option key={t} value={t}>
-                        {TIPO_DRAWDOWN_INFO[t]}
-                      </option>
-                    ))}
-                  </select>
-                </Campo>
-
                 <Campo label="Precio (USD)" ayuda="Lo que pagaste por la evaluación">
                   <input
                     name="precio"

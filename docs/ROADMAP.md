@@ -131,6 +131,45 @@ Migración `supabase/002_tipos_y_salud.sql`.
 - Fix: los botones del menú ⋯ no ejecutaban la acción (cerrar el menú
   desmontaba el `<form>` antes del submit; ahora se llaman directo).
 
+### Paso 4c — Drawdown: modos, congelamiento y pico ✅ HECHO (2026-08-17)
+Insertado antes del Paso 5. Sale de cargar las cuentas reales de Apex y
+descubrir que el modelo actual no sabe representar un trailing: el piso se
+calcula fijo desde el balance base, así que la única forma de que el
+número diera parecido en una fondeada congelada era cargar el drawdown en
+**0%**. Spec completa en `CLAUDE.md`, sección **Drawdown**.
+
+Qué entra:
+- `modo_drawdown` (`estatico` | `eod` | `trailing`) en **los dos** tipos de
+  cuenta, reemplazando a `tipo_drawdown` (que era solo de evaluaciones).
+  EOD y trailing **los dos trailean**; cambia qué pico siguen (cierre
+  diario vs. flotante intradía).
+- `piso_congelado` (nullable): dónde se traba el trailing. En Apex,
+  `tamaño + 100`. Se carga como balance.
+- `pisoDrawdown()` pasa a `min(pico − dd, piso_congelado ?? ∞)`. Como
+  `colchon()`, `salud()` y el semáforo cuelgan de ahí, se arreglan solos.
+- El pico **no se guarda** como columna: la cuenta guarda la semilla
+  (balance y pico al darla de alta en la app) y el pico se deriva de la
+  serie. Guardarlo se rompe al editar historia.
+- Formulario: desplegable de 3 + `%`/`USD` sincronizados + un tercer campo
+  que es **el piso** en estático y **el piso congelado** en EOD/trailing.
+  En los modos que trailean el piso actual se muestra calculado, no
+  editable.
+- Migración `008_drawdown_trailing.sql` (la 006 y la 007 ya estaban
+  usadas), incluyendo arreglar las cuentas cargadas con 0% y borrar
+  `tipo_drawdown`.
+- La tarjeta dice hasta dónde puede caer la cuenta, si el drawdown ya se
+  congeló o con qué balance se va a congelar, y **cuánto se puede retirar
+  sin quedar en crítico**.
+
+**Resultado visible:** el colchón y el semáforo dicen la verdad en cuentas
+trailing, sin parches.
+
+Migración corrida y verificada en la app el 2026-08-17.
+
+Se probó mostrar en la tarjeta **cuánto se puede retirar sin quedar en
+crítico** y se sacó: ensuciaba. `retiroMaximoSeguro()` queda en
+`cuentas.ts` para las alertas del Paso 7.
+
 ### Paso 5 — Gastos y payouts
 - Alta de gasto (con o sin cuenta asociada) y alta de payout.
 - Listado/tabla de movimientos, filtrable por tipo y por cuenta.
@@ -158,8 +197,21 @@ manual del Paso 4:
   columna actualizada por trigger, o se calcula al vuelo con una vista.
   Con trigger es más simple de leer desde la app móvil.
 
-Lo que habilita: rachas, días ganadores vs perdedores, ratio TP/SL, y
-alertas de "estás cerca del drawdown" con datos reales.
+**Máximo del día** (agregado 2026-08-17): campo `pico_dia` nullable en la
+fila diaria, cargado como **delta** ("+800"). Los resultados diarios mueven
+el **balance**; el máximo del día mueve **solo el piso del drawdown**, no
+se tocan entre sí. Aparece únicamente en cuentas `trailing` y solo
+mientras el trailing siga vivo (una vez congelada la cuenta desaparece
+solo). Va también en días perdedores — el caso de +600 flotante que cierra
+en −300 es justo el que más te acerca a quemarte. Vacío = se usa el
+cierre, no cero. Reglas completas en `CLAUDE.md`, sección **Drawdown**.
+
+Depende del Paso 4c: sin `modo_drawdown` y sin el pico, este campo no
+tiene dónde apoyarse.
+
+Lo que habilita: rachas, días ganadores vs perdedores, ratio TP/SL,
+alertas de "estás cerca del drawdown" con datos reales, y el gráfico
+**balance vs. piso** día a día (con el modelo viejo era una recta inútil).
 
 **Sigue fuera del MVP** el journal trade por trade (instrumento, entrada,
 salida): esto es un resumen del día, no un registro de cada operación.

@@ -12,7 +12,7 @@ import {
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
   ETIQUETA_CIERRE,
-  TIPO_DRAWDOWN_INFO,
+  MODO_DRAWDOWN_INFO,
   TIPO_INFO,
   anillo,
   chipDeCuenta,
@@ -21,10 +21,13 @@ import {
   estadoAlDesarchivar,
   fechaCorta,
   type Estado,
+  picoDeCuenta,
+  pisoDrawdown,
   plata,
   porcentaje,
   salud,
   tieneRetiro,
+  trailea,
   totalRetirado,
   variacion,
   type Cuenta,
@@ -537,9 +540,10 @@ export function TarjetaCuenta({
   const chip = chipDeCuenta(cuenta);
   const meta = anillo(cuenta);
   const esFondeada = tieneRetiro(cuenta.tipo);
+  const retirado = totalRetirado(cuenta, retiros);
+  const piso = pisoDrawdown(cuenta);
   const c = colchon(cuenta);
   const s = salud(cuenta);
-  const retirado = totalRetirado(cuenta, retiros);
 
   const drawdown =
     cuenta.drawdown_maximo_monto != null
@@ -613,9 +617,11 @@ export function TarjetaCuenta({
         </p>
       )}
 
-      {c !== null && s !== null && (
+      {/* Lo que importa mirar todos los días no es el drawdown máximo (ese
+          no cambia nunca), sino cuánta plata queda hasta tocarlo. */}
+      {c !== null && (
         <p className="mt-1 text-xs text-neutral-500">
-          Colchón hasta el drawdown:{" "}
+          Drawdown:{" "}
           <span
             className={
               s === "critico"
@@ -630,9 +636,9 @@ export function TarjetaCuenta({
         </p>
       )}
 
+
       {/* Lo mínimo del ciclo */}
       <div className="mt-2.5 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2.5">
-        <Dato label="Drawdown máx." valor={drawdown} />
         {esFondeada ? (
           <Dato
             label="Objetivo de retiro"
@@ -687,6 +693,18 @@ export function TarjetaCuenta({
         <Dato label="Balance base" valor={plata(cuenta.tamano_cuenta)} />
         <Dato label="Inicio" valor={fechaCorta(cuenta.fecha_inicio)} />
 
+        <Dato
+          label="Tipo de drawdown"
+          valor={MODO_DRAWDOWN_INFO[cuenta.modo_drawdown].corto}
+        />
+        <Dato label="Drawdown máximo" valor={drawdown} />
+        {/* El drawdown, dicho como balance: el número que no puede tocar. */}
+        <Dato label="Se quema si baja de" valor={plata(piso)} />
+
+        {trailea(cuenta.modo_drawdown) && (
+          <Dato label="Pico histórico" valor={plata(picoDeCuenta(cuenta))} />
+        )}
+
         {cuenta.fecha_cierre && (
           <Dato
             label={cuenta.estado === "passed" ? "Pasada el" : "Quemada el"}
@@ -718,14 +736,6 @@ export function TarjetaCuenta({
             <Dato
               label="Regla de consistencia"
               valor={porcentaje(cuenta.regla_consistencia, 0)}
-            />
-            <Dato
-              label="Tipo de drawdown"
-              valor={
-                cuenta.tipo_drawdown
-                  ? TIPO_DRAWDOWN_INFO[cuenta.tipo_drawdown]
-                  : "—"
-              }
             />
             <Dato label="Precio" valor={plata(cuenta.precio, 2)} />
             <Dato
