@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ModalCuenta } from "./modal-cuenta";
 import { ModalRetiros } from "./modal-retiros";
 import { TarjetaCuenta } from "./tarjeta-cuenta";
+import { ModalGasto } from "@/components/movimientos/modal-gasto";
 import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
@@ -98,6 +99,7 @@ export function CuentasVista({
     duplicar?: boolean;
   }>(null);
   const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
+  const [modalGasto, setModalGasto] = useState<Cuenta | null>(null);
 
   function cambiarPestana(p: Pestana) {
     setPestana(p);
@@ -290,6 +292,7 @@ export function CuentasVista({
                 onEditar={() => setModal({ cuenta: c })}
                 onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                 onRetiros={() => setModalRetiros(c)}
+                onGasto={() => setModalGasto(c)}
               />
             ))}
           </div>
@@ -314,6 +317,14 @@ export function CuentasVista({
       >
         + Cuenta
       </button>
+
+      {modalGasto && (
+        <ModalGasto
+          cuentas={[]}
+          cuentaFija={modalGasto}
+          onCerrar={() => setModalGasto(null)}
+        />
+      )}
 
       {modalRetiros && (
         <ModalRetiros

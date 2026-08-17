@@ -175,6 +175,43 @@ crítico** y se sacó: ensuciaba. `retiroMaximoSeguro()` queda en
 - Listado/tabla de movimientos, filtrable por tipo y por cuenta.
 - Editar y borrar movimientos.
 
+**Dónde vive cada cosa (definido 2026-08-17).** El **Funding Manager es el
+dueño de los datos**: ahí está la tabla completa, los filtros y (Paso 6)
+los gráficos. Pero **cargar** también se puede desde la tarjeta de la
+cuenta, porque ir a otra sección y elegir la cuenta de un desplegable es
+incómodo cuando ya estás parado en ella:
+
+- **Cuentas** (menú ⋯) → lo que pertenece a *esa* cuenta: reset,
+  activación, precio de la evaluación, y el retiro que ya existe.
+- **Funding Manager** → lo general (Rithmic, TradingView, lo que no es de
+  ninguna cuenta), más ver todo junto, filtrar, editar y borrar.
+
+**Dos puertas, una sola cocina.** Los dos caminos llaman a la **misma
+server action**. Nada de un alta paralela: `registrarRetiro()` ya inserta
+en `payouts` **y** descuenta del balance en la misma acción, y si se
+escribiera una segunda versión, tarde o temprano una de las dos se olvida
+de descontar y las cuentas dejan de cuadrar. El alta general es la misma
+función con un selector de cuenta arriba.
+
+**Movimientos automáticos** (resuelto 2026-08-17). Tres números viven en
+`cuentas_fondeo` y no en `gastos`/`payouts`, pero son plata que se movió:
+`precio` (lo que costó la evaluación), `fee_activacion` y
+`retiros_previos`. Se decidió **derivarlos, no copiarlos**: no se crean
+filas en `gastos` al guardar la cuenta, sino que `movimientosDeCuentas()`
+los arma al vuelo y entran en la lista y en los totales.
+
+Por qué así y no creando filas: copiarlos deja dos fuentes para el mismo
+dato y hay que mantenerlas sincronizadas en el alta, la edición y el
+borrado — el clásico lugar donde aparecen duplicados. Derivados, el número
+vive en un solo lado (la cuenta) y esto es una vista.
+
+En la tabla se marcan con "desde la cuenta" y no tienen editar ni borrar:
+se cambian en el formulario de la cuenta. Se les pone la `fecha_inicio` de
+la cuenta, que es cuando efectivamente se pagó.
+
+No hace falta migración: `gastos` y `payouts` ya existen desde
+`schema.sql`, con RLS y expuestas en la API.
+
 **Resultado visible:** cargás lo que gastaste y lo que cobraste.
 
 ### Paso 5b — Resultados diarios (TP / SL) — definido 2026-08-16

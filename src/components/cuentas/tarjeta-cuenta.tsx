@@ -302,11 +302,13 @@ function Menu({
   onEditar,
   onDuplicar,
   onRetiros,
+  onGasto,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
+  onGasto: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [submenu, setSubmenu] = useState(false);
@@ -390,6 +392,19 @@ function Menu({
               Retiros
             </button>
           )}
+
+          {/* El gasto se carga acá, parado en la cuenta, y no yendo al
+              Funding Manager a elegirla de un desplegable. Es la misma
+              action de allá: el dato termina en el mismo lugar. */}
+          <button
+            className={item}
+            onClick={() => {
+              setAbierto(false);
+              onGasto();
+            }}
+          >
+            Agregar gasto…
+          </button>
 
           {/* Submenú: se despliega al pasar el mouse por encima */}
           <div
@@ -528,12 +543,14 @@ export function TarjetaCuenta({
   onEditar,
   onDuplicar,
   onRetiros,
+  onGasto,
 }: {
   cuenta: Cuenta;
   retiros: Retiro[];
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
+  onGasto: () => void;
 }) {
   const [dorso, setDorso] = useState(false);
 
@@ -582,6 +599,7 @@ export function TarjetaCuenta({
             onEditar={onEditar}
             onDuplicar={onDuplicar}
             onRetiros={onRetiros}
+            onGasto={onGasto}
           />
         </div>
       </div>

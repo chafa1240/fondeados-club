@@ -433,8 +433,70 @@ export async function registrarRetiro(
 
   if (errorBalance) return { error: mensajeDeError(errorBalance.message) };
 
+  // El retiro se ve en las dos pantallas: la tarjeta y la lista de
+  // movimientos. Se puede cargar desde cualquiera de las dos, así que las
+  // dos se refrescan.
   revalidatePath("/cuentas");
+  revalidatePath("/funding-manager");
   return { ok: "Retiro registrado." };
+}
+
+/**
+ * Edita un retiro ya cargado y ajusta el balance por la diferencia.
+ *
+ * No se puede cambiar de cuenta: eso sería mover plata de un balance a
+ * otro y es más limpio borrarlo y cargarlo en la que corresponde.
+ */
+export async function actualizarRetiro(
+  _prev: EstadoForm,
+  fd: FormData,
+): Promise<EstadoForm> {
+  const id = texto(fd, "id");
+  const monto = numero(fd, "monto");
+  const fecha = texto(fd, "fecha") ?? new Date().toISOString().slice(0, 10);
+
+  if (!id) return { error: "Falta el retiro." };
+  if (monto === null || monto <= 0) {
+    return { error: "El monto del retiro tiene que ser mayor a 0." };
+  }
+
+  const supabase = createClient();
+
+  const { data: previo } = await supabase
+    .from("payouts")
+    .select("monto, cuenta_id")
+    .eq("id", id)
+    .single();
+
+  if (!previo) return { error: "No se encontró el retiro." };
+
+  const { data: cuenta } = await supabase
+    .from("cuentas_fondeo")
+    .select("balance_actual")
+    .eq("id", previo.cuenta_id)
+    .single();
+
+  if (!cuenta) return { error: "No se encontró la cuenta." };
+
+  const { error } = await supabase
+    .from("payouts")
+    .update({ monto, fecha, notas: texto(fd, "notas") })
+    .eq("id", id);
+
+  if (error) return { error: mensajeDeError(error.message) };
+
+  // El balance se corrige por la diferencia: se le devuelve lo que se había
+  // descontado y se le descuenta lo nuevo.
+  const { error: errorBalance } = await supabase
+    .from("cuentas_fondeo")
+    .update({ balance_actual: cuenta.balance_actual + previo.monto - monto })
+    .eq("id", previo.cuenta_id);
+
+  if (errorBalance) return { error: mensajeDeError(errorBalance.message) };
+
+  revalidatePath("/cuentas");
+  revalidatePath("/funding-manager");
+  return { ok: "Retiro actualizado." };
 }
 
 /** Borra un retiro y le devuelve el monto al balance. */
@@ -467,6 +529,7 @@ export async function eliminarRetiro(id: string, cuenta_id: string) {
   }
 
   revalidatePath("/cuentas");
+  revalidatePath("/funding-manager");
 }
 
 /* ---------- errores en castellano ---------- */
