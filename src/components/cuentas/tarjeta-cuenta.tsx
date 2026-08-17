@@ -297,7 +297,7 @@ function ModalCierre({
 
 /* ---------- Menú de la tarjeta ---------- */
 
-function Menu({
+export function MenuCuenta({
   cuenta,
   onEditar,
   onDuplicar,
@@ -594,7 +594,7 @@ export function TarjetaCuenta({
             <span className={`h-1.5 w-1.5 rounded-full ${chip.punto}`} />
             {chip.label}
           </span>
-          <Menu
+          <MenuCuenta
             cuenta={cuenta}
             onEditar={onEditar}
             onDuplicar={onDuplicar}

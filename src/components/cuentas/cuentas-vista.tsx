@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ModalCuenta } from "./modal-cuenta";
 import { ModalRetiros } from "./modal-retiros";
 import { TarjetaCuenta } from "./tarjeta-cuenta";
+import { FilaCuenta } from "./fila-cuenta";
 import { ModalGasto } from "@/components/movimientos/modal-gasto";
 import {
   ESTADO_PLURAL,
@@ -92,6 +93,20 @@ export function CuentasVista({
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [firm, setFirm] = useState<string>("todas");
   const [orden, setOrden] = useState<Orden>("nuevas");
+  // Tarjetas para mirar una cuenta; lista para ver todas juntas. La
+  // elección se recuerda: cambiarla en cada visita sería molesto.
+  const [compacta, setCompacta] = useState(false);
+
+  useEffect(() => {
+    setCompacta(localStorage.getItem("cuentas_vista") === "lista");
+  }, []);
+
+  function cambiarVista() {
+    setCompacta((v) => {
+      localStorage.setItem("cuentas_vista", v ? "tarjetas" : "lista");
+      return !v;
+    });
+  }
   // `duplicar` usa la cuenta como plantilla y crea copias nuevas en vez de
   // editarla.
   const [modal, setModal] = useState<null | {
@@ -206,6 +221,14 @@ export function CuentasVista({
           )}
 
           <button
+            onClick={cambiarVista}
+            title={compacta ? "Ver como tarjetas" : "Ver como lista"}
+            className="rounded-full border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition hover:border-neutral-700 hover:text-neutral-200"
+          >
+            {compacta ? "Tarjetas" : "Lista"}
+          </button>
+
+          <button
             onClick={() => setModal({})}
             className="hidden rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium transition hover:bg-emerald-500 sm:block"
           >
@@ -283,19 +306,35 @@ export function CuentasVista({
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {visibles.map((c) => (
-              <TarjetaCuenta
-                key={c.id}
-                cuenta={c}
-                retiros={retiros[c.id] ?? []}
-                onEditar={() => setModal({ cuenta: c })}
-                onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
-                onRetiros={() => setModalRetiros(c)}
-                onGasto={() => setModalGasto(c)}
-              />
-            ))}
-          </div>
+          {compacta ? (
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900">
+              {visibles.map((c) => (
+                <FilaCuenta
+                  key={c.id}
+                  cuenta={c}
+                  onEditar={() => setModal({ cuenta: c })}
+                  onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
+                  onRetiros={() => setModalRetiros(c)}
+                  onGasto={() => setModalGasto(c)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {visibles.map((c) => (
+                <TarjetaCuenta
+                  key={c.id}
+                  cuenta={c}
+                  retiros={retiros[c.id] ?? []}
+                  onEditar={() => setModal({ cuenta: c })}
+                  onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
+                  onRetiros={() => setModalRetiros(c)}
+                  onGasto={() => setModalGasto(c)}
+                />
+              ))}
+            </div>
+          )}
+
           <p className="mt-4 text-xs text-neutral-600">
             {enCurso.length > 0 ? (
               <>

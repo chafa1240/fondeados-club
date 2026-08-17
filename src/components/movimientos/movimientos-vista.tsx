@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { eliminarRetiro } from "@/app/(app)/cuentas/actions";
 import { eliminarGasto } from "@/app/(app)/funding-manager/actions";
 import { fechaCorta, plata, type Retiro } from "@/lib/cuentas";
@@ -25,6 +25,9 @@ import { ModalRetiro } from "./modal-retiro";
 
 const SELECT =
   "rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm outline-none transition focus:border-neutral-600";
+
+/** Cuántos movimientos se muestran de entrada, y cuántos suma "Ver más". */
+const TANDA = 20;
 
 const FECHA =
   "rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-300 outline-none transition focus:border-neutral-600";
@@ -156,6 +159,7 @@ export function MovimientosVista({
   const [mes, setMes] = useState<string>("todos");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [cuantos, setCuantos] = useState(TANDA);
 
   function elegirMes(v: string) {
     setMes(v);
@@ -266,7 +270,18 @@ export function MovimientosVista({
   const meses = useMemo(() => mesesDe(todos), [todos]);
 
   // Los totales miran lo filtrado: así "gastos de la PA7" también da su suma.
+  // Los totales miran TODO lo filtrado, no solo lo que está en pantalla: si
+  // cambiaran al apretar "Ver más", el número estaría mintiendo.
   const t = totales(visibles);
+
+  // Al cambiar cualquier filtro se vuelve a la primera tanda, si no queda
+  // "Ver más" apretado sobre una lista que ya no es la misma.
+  useEffect(() => {
+    setCuantos(TANDA);
+  }, [tipo, cuenta, mes, desde, hasta]);
+
+  const enPantalla = visibles.slice(0, cuantos);
+  const faltan = visibles.length - enPantalla.length;
 
   const fondeadasLista = cuentas.filter((c) => c.tipo === "fondeada");
   const evaluaciones = cuentas.filter((c) => c.tipo === "challenge");
@@ -399,7 +414,7 @@ export function MovimientosVista({
         <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900 px-4">
           <table className="w-full">
             <tbody>
-              {visibles.map((m) => (
+              {enPantalla.map((m) => (
                 <Fila
                   key={`${m.tipo}-${m.id}`}
                   mov={m}
@@ -412,8 +427,21 @@ export function MovimientosVista({
         </div>
       )}
 
+      {faltan > 0 && (
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={() => setCuantos((n) => n + TANDA)}
+            className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800"
+          >
+            Ver más ({faltan} {faltan === 1 ? "restante" : "restantes"})
+          </button>
+        </div>
+      )}
+
       <p className="mt-3 text-xs text-neutral-600">
-        {visibles.length} movimiento{visibles.length === 1 ? "" : "s"}
+        {faltan > 0
+          ? `Mostrando ${enPantalla.length} de ${visibles.length} movimientos`
+          : `${visibles.length} movimiento${visibles.length === 1 ? "" : "s"}`}
       </p>
 
       {modal?.que === "gasto" && (
