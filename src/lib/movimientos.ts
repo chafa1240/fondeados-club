@@ -46,6 +46,22 @@ export const CATEGORIA_INFO: Record<
   otro: { label: "Otro", ayuda: "", general: true },
 };
 
+/**
+ * Las categorías que se ofrecen al cargar un gasto a mano.
+ *
+ * Las otras tres (evaluación, reset, fee de activación) existen igual,
+ * pero **solo las usan los movimientos automáticos**: esos números ya son
+ * campos de la cuenta. Ofrecerlas también acá permitía cargar dos veces lo
+ * mismo — el precio en la evaluación y de nuevo como gasto — y el ROI
+ * quedaba inflado sin que nadie avisara.
+ *
+ * Un reset se carga como una evaluación nueva más barata: así queda además
+ * la cuenta para seguirla.
+ */
+export const CATEGORIAS_MANUALES = CATEGORIAS.filter(
+  (c) => CATEGORIA_INFO[c].general
+);
+
 /** Una fila de la tabla `gastos`. */
 export type Gasto = {
   id: string;
@@ -336,4 +352,75 @@ export function porCategoria(movs: Movimiento[]) {
   return [...acumulado.entries()]
     .map(([categoria, monto]) => ({ categoria, monto }))
     .sort((a, b) => b.monto - a.monto);
+}
+
+/* ---------- Series para los gráficos ---------- */
+
+export type PuntoAcumulado = {
+  fecha: string;
+  invertido: number;
+  cobrado: number;
+  neto: number;
+};
+
+/**
+ * Los movimientos acumulados día a día.
+ *
+ * Acumulado y no por día a propósito: la pregunta del Funding Manager es
+ * "¿cuánto llevo puesto y cuánto recuperé?", no "¿cuánto gasté el martes?".
+ * Una serie acumulada responde eso de un vistazo; una de barras diarias
+ * obliga a sumar con la vista.
+ */
+export function acumuladoEnTiempo(movs: Movimiento[]): PuntoAcumulado[] {
+  const orden = [...movs].sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+
+  const puntos: PuntoAcumulado[] = [];
+  let invertido = 0;
+  let cobrado = 0;
+
+  for (const m of orden) {
+    if (m.tipo === "gasto") invertido += m.monto;
+    else cobrado += m.monto;
+
+    const ultimo = puntos[puntos.length - 1];
+    const punto = { fecha: m.fecha, invertido, cobrado, neto: cobrado - invertido };
+
+    // Varios movimientos del mismo día son un solo punto: el de la última
+    // suma. Si no, la línea tendría escalones verticales dentro de un día.
+    if (ultimo && ultimo.fecha === m.fecha) puntos[puntos.length - 1] = punto;
+    else puntos.push(punto);
+  }
+
+  return puntos;
+}
+
+/** Cómo terminaron las cuentas de cada firm. */
+export type ResumenFirm = {
+  firm: string;
+  pasadas: number;
+  quemadas: number;
+  enJuego: number;
+};
+
+export function porFirm(
+  cuentas: { firm: string; estado: string }[]
+): ResumenFirm[] {
+  const mapa = new Map<string, ResumenFirm>();
+
+  for (const c of cuentas) {
+    const r =
+      mapa.get(c.firm) ??
+      { firm: c.firm, pasadas: 0, quemadas: 0, enJuego: 0 };
+
+    if (c.estado === "passed") r.pasadas += 1;
+    else if (c.estado === "quemada") r.quemadas += 1;
+    else if (c.estado !== "archivada") r.enJuego += 1;
+
+    mapa.set(c.firm, r);
+  }
+
+  return [...mapa.values()].sort(
+    (a, b) =>
+      b.pasadas + b.quemadas + b.enJuego - (a.pasadas + a.quemadas + a.enJuego)
+  );
 }

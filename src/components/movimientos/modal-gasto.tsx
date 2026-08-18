@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarGasto, type EstadoForm } from "@/app/(app)/funding-manager/actions";
 import {
-  CATEGORIAS,
+  CATEGORIAS_MANUALES,
   CATEGORIA_INFO,
   type Categoria,
   type Gasto,
@@ -56,18 +56,12 @@ function Guardar({ texto }: { texto: string }) {
 export function ModalGasto({
   gasto,
   cuentas,
-  /**
-   * Cuando el modal se abre desde la tarjeta de una cuenta, la cuenta ya
-   * está decidida y el selector no se muestra: para eso se abrió ahí.
-   */
-  cuentaFija,
   /** Nombres ya usados antes, para no volver a escribirlos. */
   nombresUsados = [],
   onCerrar,
 }: {
   gasto?: Gasto;
   cuentas: CuentaBreve[];
-  cuentaFija?: CuentaBreve;
   nombresUsados?: string[];
   onCerrar: () => void;
 }) {
@@ -77,7 +71,7 @@ export function ModalGasto({
   );
 
   const [categoria, setCategoria] = useState<Categoria>(
-    gasto?.categoria ?? (cuentaFija ? "reset" : "software_suscripcion")
+    gasto?.categoria ?? "software_suscripcion"
   );
 
   useEffect(() => {
@@ -103,11 +97,6 @@ export function ModalGasto({
             <h2 className="text-lg font-semibold">
               {esEdicion ? "Editar gasto" : "Nuevo gasto"}
             </h2>
-            {cuentaFija && (
-              <p className="mt-1 text-sm text-neutral-400">
-                {cuentaFija.nombre} · {cuentaFija.firm}
-              </p>
-            )}
           </div>
           <button
             onClick={onCerrar}
@@ -120,9 +109,6 @@ export function ModalGasto({
 
         <form action={formAction} className="space-y-4">
           {esEdicion && <input type="hidden" name="id" value={gasto!.id} />}
-          {cuentaFija && (
-            <input type="hidden" name="cuenta_id" value={cuentaFija.id} />
-          )}
 
           <Campo label="Categoría" ayuda={CATEGORIA_INFO[categoria].ayuda}>
             <select
@@ -131,7 +117,9 @@ export function ModalGasto({
               onChange={(e) => setCategoria(e.target.value as Categoria)}
               className={INPUT}
             >
-              {CATEGORIAS.map((c) => (
+              {/* El precio de una evaluación y el fee de activación no
+                  están acá: son campos de la cuenta y ya se cuentan solos. */}
+              {CATEGORIAS_MANUALES.map((c) => (
                 <option key={c} value={c}>
                   {CATEGORIA_INFO[c].label}
                 </option>
@@ -162,26 +150,23 @@ export function ModalGasto({
             </Campo>
           </div>
 
-          {/* Sin cuenta fija, el gasto puede ser de una cuenta o general. */}
-          {!cuentaFija && (
-            <Campo
-              label="Cuenta"
-              ayuda="Dejalo en General si el gasto no es de una cuenta puntual (ej. el data feed)"
+          <Campo
+            label="Cuenta"
+            ayuda="Dejalo en General si el gasto no es de una cuenta puntual (ej. el data feed)"
+          >
+            <select
+              name="cuenta_id"
+              defaultValue={gasto?.cuenta_id ?? ""}
+              className={INPUT}
             >
-              <select
-                name="cuenta_id"
-                defaultValue={gasto?.cuenta_id ?? ""}
-                className={INPUT}
-              >
-                <option value="">General (no es de ninguna cuenta)</option>
-                {cuentas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre} · {c.firm}
-                  </option>
-                ))}
-              </select>
-            </Campo>
-          )}
+              <option value="">General (no es de ninguna cuenta)</option>
+              {cuentas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} · {c.firm}
+                </option>
+              ))}
+            </select>
+          </Campo>
 
           {/* El nombre es lo que distingue dos gastos de la misma
               categoría: "Rithmic" y "TradingView" son los dos

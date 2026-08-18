@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 type CuentaLista = CuentaBreve &
   CuentaMovimientos & {
     tipo: string;
+    estado: string;
     created_at: string;
   };
 
@@ -28,7 +29,7 @@ export default async function FundingManagerPage() {
       supabase
         .from("cuentas_fondeo")
         .select(
-          "id, nombre, firm, tipo, fecha_inicio, created_at, precio, fee_activacion, retiros_previos, profit_split",
+          "id, nombre, firm, tipo, estado, fecha_inicio, created_at, precio, fee_activacion, retiros_previos, profit_split",
         ),
     ]);
 

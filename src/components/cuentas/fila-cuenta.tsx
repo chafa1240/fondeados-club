@@ -23,7 +23,6 @@ export function FilaCuenta({
   onEditar,
   onDuplicar,
   onRetiros,
-  onGasto,
   onResultado,
   onCurva,
 }: {
@@ -31,7 +30,6 @@ export function FilaCuenta({
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
-  onGasto: () => void;
   onResultado: () => void;
   onCurva: () => void;
 }) {
@@ -105,7 +103,6 @@ export function FilaCuenta({
         onEditar={onEditar}
         onDuplicar={onDuplicar}
         onRetiros={onRetiros}
-        onGasto={onGasto}
         onResultado={onResultado}
         onCurva={onCurva}
       />

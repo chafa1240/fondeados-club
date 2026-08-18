@@ -5,7 +5,6 @@ import { ModalCuenta } from "./modal-cuenta";
 import { ModalRetiros } from "./modal-retiros";
 import { TarjetaCuenta } from "./tarjeta-cuenta";
 import { FilaCuenta } from "./fila-cuenta";
-import { ModalGasto } from "@/components/movimientos/modal-gasto";
 import { ModalResultado } from "./modal-resultado";
 import { ModalCurva } from "./modal-curva";
 import type { Punto, Resultado } from "@/lib/resultados";
@@ -123,7 +122,6 @@ export function CuentasVista({
     duplicar?: boolean;
   }>(null);
   const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
-  const [modalGasto, setModalGasto] = useState<Cuenta | null>(null);
   const [modalResultado, setModalResultado] = useState<Cuenta | null>(null);
   const [modalCurva, setModalCurva] = useState<Cuenta | null>(null);
 
@@ -326,7 +324,6 @@ export function CuentasVista({
                   onEditar={() => setModal({ cuenta: c })}
                   onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                   onRetiros={() => setModalRetiros(c)}
-                  onGasto={() => setModalGasto(c)}
                   onResultado={() => setModalResultado(c)}
                   onCurva={() => setModalCurva(c)}
                 />
@@ -343,7 +340,6 @@ export function CuentasVista({
                   onEditar={() => setModal({ cuenta: c })}
                   onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                   onRetiros={() => setModalRetiros(c)}
-                  onGasto={() => setModalGasto(c)}
                   onResultado={() => setModalResultado(c)}
                   onCurva={() => setModalCurva(c)}
                 />
@@ -387,14 +383,6 @@ export function CuentasVista({
           cuenta={modalResultado}
           resultados={resultados[modalResultado.id] ?? []}
           onCerrar={() => setModalResultado(null)}
-        />
-      )}
-
-      {modalGasto && (
-        <ModalGasto
-          cuentas={[]}
-          cuentaFija={modalGasto}
-          onCerrar={() => setModalGasto(null)}
         />
       )}
 

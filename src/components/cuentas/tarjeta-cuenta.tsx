@@ -303,7 +303,6 @@ export function MenuCuenta({
   onEditar,
   onDuplicar,
   onRetiros,
-  onGasto,
   onResultado,
   onCurva,
 }: {
@@ -311,7 +310,6 @@ export function MenuCuenta({
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
-  onGasto: () => void;
   onResultado: () => void;
   onCurva: () => void;
 }) {
@@ -419,18 +417,11 @@ export function MenuCuenta({
             </button>
           )}
 
-          {/* El gasto se carga acá, parado en la cuenta, y no yendo al
-              Funding Manager a elegirla de un desplegable. Es la misma
-              action de allá: el dato termina en el mismo lugar. */}
-          <button
-            className={item}
-            onClick={() => {
-              setAbierto(false);
-              onGasto();
-            }}
-          >
-            Agregar gasto…
-          </button>
+          {/* Acá NO hay "agregar gasto": todo lo que cuesta una cuenta ya es
+              un campo suyo (el precio de la evaluación, el fee de
+              activación) y se cuenta solo en el Funding Manager. Un segundo
+              camino para el mismo dato terminaba en gastos cargados dos
+              veces. */}
 
           {/* Submenú: se despliega al pasar el mouse por encima */}
           <div
@@ -594,7 +585,6 @@ export function TarjetaCuenta({
   onEditar,
   onDuplicar,
   onRetiros,
-  onGasto,
   onResultado,
   onCurva,
 }: {
@@ -604,7 +594,6 @@ export function TarjetaCuenta({
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
-  onGasto: () => void;
   onResultado: () => void;
   onCurva: () => void;
 }) {
@@ -661,7 +650,6 @@ export function TarjetaCuenta({
             onEditar={onEditar}
             onDuplicar={onDuplicar}
             onRetiros={onRetiros}
-            onGasto={onGasto}
             onResultado={onResultado}
             onCurva={onCurva}
           />

@@ -1,24 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { eliminarRetiro } from "@/app/(app)/cuentas/actions";
 import { eliminarGasto } from "@/app/(app)/funding-manager/actions";
 import { fechaCorta, plata, type Retiro } from "@/lib/cuentas";
 import {
+  CATEGORIAS,
   CATEGORIA_INFO,
   type CampoCuenta,
-  TIPOS_MOVIMIENTO,
+  type Categoria,
   TIPO_MOVIMIENTO_INFO,
+  acumuladoEnTiempo,
   etiquetaMes,
   mesDe,
   mesesDe,
   movimientosDe,
+  porCategoria,
+  porFirm,
   totales,
   type CuentaMovimientos,
   type Gasto,
   type Movimiento,
   type TipoMovimiento,
 } from "@/lib/movimientos";
+import {
+  GraficoAcumulado,
+  GraficoCategorias,
+  GraficoFirms,
+  Panel,
+} from "./graficos";
 import { ModalCampoCuenta } from "./modal-campo-cuenta";
 import { ModalGasto, type CuentaBreve } from "./modal-gasto";
 import { ModalRetiro } from "./modal-retiro";
@@ -137,29 +147,25 @@ function Fila({
   );
 }
 
-/* ---------- Vista ---------- */
+/* ---------- Filtros ---------- */
 
-export function MovimientosVista({
-  gastos,
-  retiros,
-  cuentas,
-  fondeadas,
-}: {
-  gastos: Gasto[];
-  retiros: Retiro[];
-  /** Sirven para el selector y para los movimientos automáticos. */
-  cuentas: (CuentaBreve & CuentaMovimientos & { tipo: string })[];
-  fondeadas: CuentaBreve[];
-}) {
-  const [tipo, setTipo] = useState<TipoMovimiento | "todos">("todos");
-  const [cuenta, setCuenta] = useState<string>("todas");
+/**
+ * El estado de un filtro. Hay dos instancias distintas en la pantalla —
+ * una para el resumen de arriba y otra para el historial de abajo — porque
+ * son dos preguntas diferentes: "cómo venís este mes" y "qué cargaste".
+ * Compartir un solo filtro obligaba a romper una de las dos vistas para
+ * mirar la otra.
+ */
+function useFiltro() {
+  const [cuenta, setCuenta] = useState("todas");
   // Mes y rango de fechas son excluyentes entre sí: elegir uno limpia el
   // otro. Combinarlos deja al usuario mirando una lista vacía sin entender
   // por qué.
-  const [mes, setMes] = useState<string>("todos");
+  const [mes, setMes] = useState("todos");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
-  const [cuantos, setCuantos] = useState(TANDA);
+  const [tipo, setTipo] = useState<TipoMovimiento | "todos">("todos");
+  const [categoria, setCategoria] = useState<Categoria | "todas">("todas");
 
   function elegirMes(v: string) {
     setMes(v);
@@ -177,20 +183,390 @@ export function MovimientosVista({
     setMes("todos");
   }
 
-  const hayFiltros =
-    tipo !== "todos" ||
+  /**
+   * Tipo y categoría viajan juntos en un solo desplegable: "gasto" o
+   * "gasto:reset". Son la misma pregunta en dos niveles — qué estoy
+   * mirando — y separarlos obligaba a elegir dos veces.
+   */
+  const valorTipo =
+    tipo === "gasto" && categoria !== "todas" ? `gasto:${categoria}` : tipo;
+
+  function elegirTipo(v: string) {
+    if (v.startsWith("gasto:")) {
+      setTipo("gasto");
+      setCategoria(v.slice("gasto:".length) as Categoria);
+      return;
+    }
+
+    setTipo(v as TipoMovimiento | "todos");
+    // La categoría solo existe dentro de los gastos: al salir de ahí se
+    // limpia sola, si no queda un filtro invisible aplicado.
+    setCategoria("todas");
+  }
+
+  const hay =
     cuenta !== "todas" ||
     mes !== "todos" ||
     desde !== "" ||
-    hasta !== "";
+    hasta !== "" ||
+    tipo !== "todos" ||
+    categoria !== "todas";
 
   function limpiar() {
-    setTipo("todos");
     setCuenta("todas");
     setMes("todos");
     setDesde("");
     setHasta("");
+    setTipo("todos");
+    setCategoria("todas");
   }
+
+  return {
+    cuenta,
+    setCuenta,
+    mes,
+    desde,
+    hasta,
+    tipo,
+    categoria,
+    valorTipo,
+    elegirMes,
+    elegirDesde,
+    elegirHasta,
+    elegirTipo,
+    hay,
+    limpiar,
+  };
+}
+
+type Filtro = ReturnType<typeof useFiltro>;
+
+/**
+ * El filtro de tipo, con los gastos desplegándose en un submenú.
+ *
+ * Es un desplegable propio y no un `<select>` porque el nativo no sabe
+ * anidar: sus `optgroup` muestran todo abierto de una. Sigue el mismo
+ * patrón que el menú ⋯ de las tarjetas — submenú al pasar por encima —
+ * así el gesto es el mismo en toda la app.
+ */
+function SelectorTipo({ filtro }: { filtro: Filtro }) {
+  const [abierto, setAbierto] = useState(false);
+  const [submenu, setSubmenu] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setAbierto(false);
+        setSubmenu(false);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [abierto]);
+
+  const etiqueta =
+    filtro.tipo === "todos"
+      ? "Todo"
+      : filtro.tipo === "retiro"
+        ? TIPO_MOVIMIENTO_INFO.retiro.plural
+        : filtro.categoria === "todas"
+          ? TIPO_MOVIMIENTO_INFO.gasto.plural
+          : CATEGORIA_INFO[filtro.categoria].label;
+
+  const item =
+    "block w-full px-3 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-neutral-800";
+
+  function elegir(v: string) {
+    filtro.elegirTipo(v);
+    setAbierto(false);
+    setSubmenu(false);
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className={`${SELECT} flex items-center gap-2`}
+      >
+        {etiqueta}
+        <span className="text-neutral-600">▾</span>
+      </button>
+
+      {abierto && (
+        <div className="absolute left-0 z-30 mt-1 w-48 rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+          <button className={item} onClick={() => elegir("todos")}>
+            Todo
+          </button>
+
+          <div
+            className="relative"
+            onMouseEnter={() => setSubmenu(true)}
+            onMouseLeave={() => setSubmenu(false)}
+          >
+            <button
+              className={`${item} flex items-center justify-between`}
+              onClick={() => elegir("gasto")}
+            >
+              {TIPO_MOVIMIENTO_INFO.gasto.plural}
+              <span className="text-neutral-600">›</span>
+            </button>
+
+            {submenu && (
+              <div className="absolute left-full top-0 z-40 ml-1 w-52 rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+                <button className={item} onClick={() => elegir("gasto")}>
+                  Todos los gastos
+                </button>
+                {CATEGORIAS.map((c) => (
+                  <button
+                    key={c}
+                    className={item}
+                    onClick={() => elegir(`gasto:${c}`)}
+                  >
+                    {CATEGORIA_INFO[c].label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button className={item} onClick={() => elegir("retiro")}>
+            {TIPO_MOVIMIENTO_INFO.retiro.plural}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * El filtro de cuenta, con Fondeadas y Evaluaciones desplegándose en
+ * submenús. Mismo patrón y mismo motivo que `SelectorTipo`: el `<select>`
+ * nativo muestra sus grupos siempre abiertos, y con veinte cuentas eso es
+ * una lista interminable.
+ */
+function SelectorCuenta({
+  filtro,
+  fondeadas,
+  evaluaciones,
+}: {
+  filtro: Filtro;
+  fondeadas: CuentaBreve[];
+  evaluaciones: CuentaBreve[];
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [submenu, setSubmenu] = useState<null | "fondeada" | "challenge">(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setAbierto(false);
+        setSubmenu(null);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [abierto]);
+
+  const todas = [...fondeadas, ...evaluaciones];
+  const elegida = todas.find((c) => c.id === filtro.cuenta);
+
+  const etiqueta = elegida
+    ? elegida.nombre
+    : filtro.cuenta === "fondeada"
+      ? "Todas las fondeadas"
+      : filtro.cuenta === "challenge"
+        ? "Todas las evaluaciones"
+        : "Todas las cuentas";
+
+  const item =
+    "block w-full px-3 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-neutral-800";
+
+  function elegir(v: string) {
+    filtro.setCuenta(v);
+    setAbierto(false);
+    setSubmenu(null);
+  }
+
+  const grupo = (
+    clave: "fondeada" | "challenge",
+    label: string,
+    todosLabel: string,
+    lista: CuentaBreve[]
+  ) =>
+    lista.length > 0 && (
+      <div
+        className="relative"
+        onMouseEnter={() => setSubmenu(clave)}
+        onMouseLeave={() => setSubmenu(null)}
+      >
+        <button
+          className={`${item} flex items-center justify-between`}
+          onClick={() => elegir(clave)}
+        >
+          {label}
+          <span className="text-neutral-600">›</span>
+        </button>
+
+        {submenu === clave && (
+          <div className="absolute left-full top-0 z-40 ml-1 max-h-72 w-56 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+            <button className={item} onClick={() => elegir(clave)}>
+              {todosLabel}
+            </button>
+            {lista.map((c) => (
+              <button
+                key={c.id}
+                className={item}
+                onClick={() => elegir(c.id)}
+              >
+                {c.nombre} · {c.firm}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        aria-label="Filtrar por cuenta"
+        className={`${SELECT} flex items-center gap-2`}
+      >
+        {etiqueta}
+        <span className="text-neutral-600">▾</span>
+      </button>
+
+      {abierto && (
+        <div className="absolute left-0 z-30 mt-1 w-48 rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+          <button className={item} onClick={() => elegir("todas")}>
+            Todas las cuentas
+          </button>
+
+          {grupo("fondeada", "Fondeadas", "Todas las fondeadas", fondeadas)}
+          {grupo(
+            "challenge",
+            "Evaluaciones",
+            "Todas las evaluaciones",
+            evaluaciones
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Filtros({
+  filtro,
+  meses,
+  fondeadas,
+  evaluaciones,
+  /**
+   * El resumen filtra solo por tiempo. Por tipo no, porque comparar
+   * invertido contra cobrado necesita los dos lados; y por cuenta tampoco,
+   * porque la pregunta del resumen es "cómo vengo", no "cómo viene la
+   * PA7" — para eso está el filtro del historial.
+   */
+  conTipo,
+  conCuenta,
+  children,
+}: {
+  filtro: Filtro;
+  meses: string[];
+  fondeadas: CuentaBreve[];
+  evaluaciones: CuentaBreve[];
+  conTipo?: boolean;
+  conCuenta?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      {conTipo && <SelectorTipo filtro={filtro} />}
+
+      {conCuenta && (
+        <SelectorCuenta
+          filtro={filtro}
+          fondeadas={fondeadas}
+          evaluaciones={evaluaciones}
+        />
+      )}
+
+      <select
+        value={filtro.mes}
+        onChange={(e) => filtro.elegirMes(e.target.value)}
+        aria-label="Filtrar por mes"
+        className={SELECT}
+      >
+        <option value="todos">Todos los meses</option>
+        {meses.map((m) => (
+          <option key={m} value={m}>
+            {etiquetaMes(m)}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex items-center gap-1 text-xs text-neutral-500">
+        <input
+          type="date"
+          value={filtro.desde}
+          onChange={(e) => filtro.elegirDesde(e.target.value)}
+          aria-label="Desde"
+          className={FECHA}
+        />
+        <span>a</span>
+        <input
+          type="date"
+          value={filtro.hasta}
+          onChange={(e) => filtro.elegirHasta(e.target.value)}
+          aria-label="Hasta"
+          className={FECHA}
+        />
+      </div>
+
+      {filtro.hay && (
+        <button
+          onClick={filtro.limpiar}
+          className="text-xs text-neutral-500 transition hover:text-neutral-200"
+        >
+          Limpiar
+        </button>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+function Titulo({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+      {children}
+    </h2>
+  );
+}
+
+/* ---------- Vista ---------- */
+
+export function MovimientosVista({
+  gastos,
+  retiros,
+  cuentas,
+  fondeadas,
+}: {
+  gastos: Gasto[];
+  retiros: Retiro[];
+  /** Sirven para el selector y para los movimientos automáticos. */
+  cuentas: (CuentaBreve &
+    CuentaMovimientos & { tipo: string; estado: string })[];
+  fondeadas: CuentaBreve[];
+}) {
+  const resumen = useFiltro();
+  const historial = useFiltro();
+  const [cuantos, setCuantos] = useState(TANDA);
   const [modal, setModal] = useState<
     | null
     | { que: "gasto"; gasto?: Gasto }
@@ -251,43 +627,51 @@ export function MovimientosVista({
     [gastos, retiros, cuentas]
   );
 
-  const visibles = useMemo(
-    () =>
-      todos.filter((m) => {
-        if (tipo !== "todos" && m.tipo !== tipo) return false;
+  /** Un movimiento pasa un filtro, o no. La usan las dos secciones. */
+  function pasa(m: Movimiento, f: Filtro) {
+    if (f.tipo !== "todos" && m.tipo !== f.tipo) return false;
+    if (f.categoria !== "todas" && m.categoria !== f.categoria) return false;
 
-        if (mes !== "todos" && mesDe(m.fecha) !== mes) return false;
-        // Las fechas son "AAAA-MM-DD": comparadas como texto ya ordenan bien.
-        if (desde !== "" && m.fecha < desde) return false;
-        if (hasta !== "" && m.fecha > hasta) return false;
+    if (f.mes !== "todos" && mesDe(m.fecha) !== f.mes) return false;
+    // Las fechas son "AAAA-MM-DD": comparadas como texto ya ordenan bien.
+    if (f.desde !== "" && m.fecha < f.desde) return false;
+    if (f.hasta !== "" && m.fecha > f.hasta) return false;
 
-        if (cuenta === "todas") return true;
-        // "Todas las fondeadas" / "Todas las evaluaciones"
-        if (cuenta === "fondeada" || cuenta === "challenge") {
-          return m.cuenta_id !== null && tipoDe(m.cuenta_id) === cuenta;
-        }
-        return m.cuenta_id === cuenta;
-      }),
-    // tipoDe se deriva de `cuentas`, que no cambia mientras se filtra
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [todos, tipo, cuenta, mes, desde, hasta]
-  );
+    if (f.cuenta === "todas") return true;
+    // "Todas las fondeadas" / "Todas las evaluaciones"
+    if (f.cuenta === "fondeada" || f.cuenta === "challenge") {
+      return m.cuenta_id !== null && tipoDe(m.cuenta_id) === f.cuenta;
+    }
+    return m.cuenta_id === f.cuenta;
+  }
+
+  const deResumen = todos.filter((m) => pasa(m, resumen));
+  const deHistorial = todos.filter((m) => pasa(m, historial));
 
   const meses = useMemo(() => mesesDe(todos), [todos]);
 
-  // Los totales miran lo filtrado: así "gastos de la PA7" también da su suma.
-  // Los totales miran TODO lo filtrado, no solo lo que está en pantalla: si
-  // cambiaran al apretar "Ver más", el número estaría mintiendo.
-  const t = totales(visibles);
+  // Los totales acompañan al resumen, que es la sección donde viven.
+  const t = totales(deResumen);
 
-  // Al cambiar cualquier filtro se vuelve a la primera tanda, si no queda
-  // "Ver más" apretado sobre una lista que ya no es la misma.
+  // Al cambiar cualquier filtro del historial se vuelve a la primera tanda,
+  // si no queda "Ver más" apretado sobre una lista que ya no es la misma.
   useEffect(() => {
     setCuantos(TANDA);
-  }, [tipo, cuenta, mes, desde, hasta]);
+  }, [
+    historial.tipo,
+    historial.categoria,
+    historial.cuenta,
+    historial.mes,
+    historial.desde,
+    historial.hasta,
+  ]);
 
-  const enPantalla = visibles.slice(0, cuantos);
-  const faltan = visibles.length - enPantalla.length;
+  const acumulado = acumuladoEnTiempo(deResumen);
+  const categorias = porCategoria(deResumen);
+  const firms = useMemo(() => porFirm(cuentas), [cuentas]);
+
+  const enPantalla = deHistorial.slice(0, cuantos);
+  const faltan = deHistorial.length - enPantalla.length;
 
   const fondeadasLista = cuentas.filter((c) => c.tipo === "fondeada");
   const evaluaciones = cuentas.filter((c) => c.tipo === "challenge");
@@ -305,6 +689,15 @@ export function MovimientosVista({
 
   return (
     <>
+      <Titulo>Resumen</Titulo>
+
+      <Filtros
+        filtro={resumen}
+        meses={meses}
+        fondeadas={fondeadasLista}
+        evaluaciones={evaluaciones}
+      />
+
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Total label="Invertido" valor={plata(t.invertido)} />
         <Total label="Cobrado" valor={plata(t.cobrado)} />
@@ -315,91 +708,40 @@ export function MovimientosVista({
         />
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value as TipoMovimiento | "todos")}
-          className={SELECT}
+      <div className="mb-4 grid gap-3 lg:grid-cols-2">
+        <Panel
+          titulo="Invertido vs. cobrado"
+          ayuda="Acumulado: cuánto llevás puesto y cuánto recuperaste"
         >
-          <option value="todos">Todo</option>
-          {TIPOS_MOVIMIENTO.map((t) => (
-            <option key={t} value={t}>
-              {TIPO_MOVIMIENTO_INFO[t].plural}
-            </option>
-          ))}
-        </select>
+          <GraficoAcumulado puntos={acumulado} modo="comparado" />
+        </Panel>
 
-        <select
-          value={cuenta}
-          onChange={(e) => setCuenta(e.target.value)}
-          className={SELECT}
+        <Panel titulo="Neto acumulado" ayuda="La diferencia entre los dos">
+          <GraficoAcumulado puntos={acumulado} modo="neto" />
+        </Panel>
+
+        <Panel titulo="Gastos por categoría" ayuda="En qué se te va la plata">
+          <GraficoCategorias datos={categorias} />
+        </Panel>
+
+        <Panel
+          titulo="Cuentas por firm"
+          ayuda="Cómo terminaron. No sigue los filtros: mira todas tus cuentas"
         >
-          <option value="todas">Todas las cuentas</option>
+          <GraficoFirms datos={firms} />
+        </Panel>
+      </div>
 
-          {fondeadasLista.length > 0 && (
-            <optgroup label="Fondeadas">
-              <option value="fondeada">Todas las fondeadas</option>
-              {fondeadasLista.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre} · {c.firm}
-                </option>
-              ))}
-            </optgroup>
-          )}
+      <Titulo>Historial</Titulo>
 
-          {evaluaciones.length > 0 && (
-            <optgroup label="Evaluaciones">
-              <option value="challenge">Todas las evaluaciones</option>
-              {evaluaciones.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre} · {c.firm}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-
-        <select
-          value={mes}
-          onChange={(e) => elegirMes(e.target.value)}
-          aria-label="Filtrar por mes"
-          className={SELECT}
-        >
-          <option value="todos">Todos los meses</option>
-          {meses.map((m) => (
-            <option key={m} value={m}>
-              {etiquetaMes(m)}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex items-center gap-1 text-xs text-neutral-500">
-          <input
-            type="date"
-            value={desde}
-            onChange={(e) => elegirDesde(e.target.value)}
-            aria-label="Desde"
-            className={FECHA}
-          />
-          <span>a</span>
-          <input
-            type="date"
-            value={hasta}
-            onChange={(e) => elegirHasta(e.target.value)}
-            aria-label="Hasta"
-            className={FECHA}
-          />
-        </div>
-
-        {hayFiltros && (
-          <button
-            onClick={limpiar}
-            className="text-xs text-neutral-500 transition hover:text-neutral-200"
-          >
-            Limpiar
-          </button>
-        )}
-
+      <Filtros
+        filtro={historial}
+        meses={meses}
+        fondeadas={fondeadasLista}
+        evaluaciones={evaluaciones}
+        conTipo
+        conCuenta
+      >
         <div className="ml-auto flex gap-2">
           <button className={BOTON} onClick={() => setModal({ que: "gasto" })}>
             + Gasto
@@ -408,9 +750,9 @@ export function MovimientosVista({
             + Retiro
           </button>
         </div>
-      </div>
+      </Filtros>
 
-      {visibles.length === 0 ? (
+      {deHistorial.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 p-8 text-center text-sm text-neutral-500">
           {todos.length === 0
             ? "Todavía no cargaste ningún movimiento. Empezá por el fee de una evaluación."
@@ -446,8 +788,10 @@ export function MovimientosVista({
 
       <p className="mt-3 text-xs text-neutral-600">
         {faltan > 0
-          ? `Mostrando ${enPantalla.length} de ${visibles.length} movimientos`
-          : `${visibles.length} movimiento${visibles.length === 1 ? "" : "s"}`}
+          ? `Mostrando ${enPantalla.length} de ${deHistorial.length} movimientos`
+          : `${deHistorial.length} movimiento${
+              deHistorial.length === 1 ? "" : "s"
+            }`}
       </p>
 
       {modal?.que === "gasto" && (
