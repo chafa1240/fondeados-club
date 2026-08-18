@@ -19,11 +19,24 @@ function numero(fd: FormData, campo: string) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** "2026-08-18" -> "2026-08-17", sin pasar por zonas horarias. */
+function diaAnterior(fecha: string) {
+  const [a, m, d] = fecha.slice(0, 10).split("-").map(Number);
+  const t = new Date(Date.UTC(a, m - 1, d - 1));
+  return t.toISOString().slice(0, 10);
+}
+
 /**
  * Guarda el resultado de un día.
  *
  * Un día tiene un solo resultado por cuenta, así que esto es un upsert:
  * volver a cargar el mismo día lo corrige en vez de duplicarlo.
+ *
+ * Además corre la semilla hacia atrás si hace falta. Sin eso, cargar un
+ * día que cae en la fecha de la semilla o antes no movía el balance (queda
+ * "absorbido" por el punto de partida) y parecía que la app se comía el
+ * resultado. La regla es: **si cargás un día, ese día cuenta**. Lo último
+ * que dijiste sobre la cuenta es lo que más sabe.
  */
 export async function guardarResultado(
   _prev: EstadoForm,
@@ -62,9 +75,35 @@ export async function guardarResultado(
 
   if (error) return { error: mensajeDeError(error.message) };
 
+  await correrSemilla(cuenta_id, fecha);
+
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
   return { ok: "Resultado guardado." };
+}
+
+/**
+ * Deja la semilla justo antes del día cargado, si estaba encima o después.
+ *
+ * El balance de partida no se toca: lo único que cambia es desde cuándo se
+ * empieza a sumar, así el día recién cargado entra en la cuenta.
+ */
+async function correrSemilla(cuenta_id: string, fecha: string) {
+  const supabase = createClient();
+
+  const { data: cuenta } = await supabase
+    .from("cuentas_fondeo")
+    .select("fecha_semilla")
+    .eq("id", cuenta_id)
+    .single();
+
+  if (!cuenta?.fecha_semilla) return;
+  if (fecha > cuenta.fecha_semilla) return;
+
+  await supabase
+    .from("cuentas_fondeo")
+    .update({ fecha_semilla: diaAnterior(fecha) })
+    .eq("id", cuenta_id);
 }
 
 export async function eliminarResultado(id: string) {

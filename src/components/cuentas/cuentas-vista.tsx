@@ -333,6 +333,7 @@ export function CuentasVista({
                   key={c.id}
                   cuenta={c}
                   retiros={retiros[c.id] ?? []}
+                  resultados={resultados[c.id] ?? []}
                   onEditar={() => setModal({ cuenta: c })}
                   onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                   onRetiros={() => setModalRetiros(c)}

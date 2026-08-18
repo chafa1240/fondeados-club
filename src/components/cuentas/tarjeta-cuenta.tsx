@@ -33,6 +33,7 @@ import {
   type Cuenta,
   type Retiro,
 } from "@/lib/cuentas";
+import type { Resultado } from "@/lib/resultados";
 
 /* ---------- Anillo de progreso ---------- */
 
@@ -577,6 +578,7 @@ function BotonVuelta({
 export function TarjetaCuenta({
   cuenta,
   retiros,
+  resultados,
   onEditar,
   onDuplicar,
   onRetiros,
@@ -585,6 +587,7 @@ export function TarjetaCuenta({
 }: {
   cuenta: Cuenta;
   retiros: Retiro[];
+  resultados: Resultado[];
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
@@ -598,6 +601,12 @@ export function TarjetaCuenta({
   const esFondeada = tieneRetiro(cuenta.tipo);
   const retirado = totalRetirado(cuenta, retiros);
   const piso = pisoDrawdown(cuenta);
+
+  // El día más reciente que se cargó. Se muestra siempre con su fecha y no
+  // con un "Hoy": la tarjeta se renderiza primero en el servidor (UTC) y
+  // después en el navegador, y comparar contra "hoy" da distinto en las dos
+  // puntas después de las 21hs.
+  const ultimo = [...resultados].sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
   const c = colchon(cuenta);
   const s = salud(cuenta);
 
@@ -732,11 +741,27 @@ export function TarjetaCuenta({
       )}
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           <Accion onClick={onResultado}>+ Día</Accion>
           {/* Retirar de una evaluación no existe: la cuenta todavía no
               cobra. Por eso el botón aparece solo en las fondeadas. */}
           {esFondeada && <Accion onClick={onRetiros}>Retiro</Accion>}
+
+          {/* El último día cargado, al lado del botón que lo carga. Va en
+              el hueco que ya existía: no agranda la tarjeta. */}
+          {ultimo && (
+            <span className="truncate text-[11px] text-neutral-500">
+              {fechaCorta(ultimo.fecha).slice(0, 5)}{" "}
+              <span
+                className={
+                  ultimo.monto >= 0 ? "text-emerald-400/90" : "text-rose-400/90"
+                }
+              >
+                {ultimo.monto >= 0 ? "+" : "−"}
+                {plata(Math.abs(ultimo.monto))}
+              </span>
+            </span>
+          )}
         </div>
         <BotonVuelta onClick={() => setDorso(true)}>+ Información…</BotonVuelta>
       </div>
