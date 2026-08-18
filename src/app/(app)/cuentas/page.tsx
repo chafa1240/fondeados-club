@@ -2,6 +2,11 @@ import { EncabezadoSeccion } from "@/components/seccion";
 import { CuentasVista } from "@/components/cuentas/cuentas-vista";
 import { createClient } from "@/lib/supabase/server";
 import type { Cuenta, Retiro } from "@/lib/cuentas";
+import {
+  estadoDeCuenta,
+  porCuenta,
+  type Resultado,
+} from "@/lib/resultados";
 
 // Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
 export const dynamic = "force-dynamic";
@@ -9,19 +14,38 @@ export const dynamic = "force-dynamic";
 export default async function CuentasPage() {
   const supabase = createClient();
 
-  const [{ data: cuentas, error }, { data: payouts }] = await Promise.all([
-    supabase
-      .from("cuentas_fondeo")
-      .select("*")
-      .order("created_at", { ascending: false }),
-    supabase.from("payouts").select("*").order("fecha", { ascending: false }),
-  ]);
+  const [{ data: cuentas, error }, { data: payouts }, { data: dias }] =
+    await Promise.all([
+      supabase
+        .from("cuentas_fondeo")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase.from("payouts").select("*").order("fecha", { ascending: false }),
+      supabase
+        .from("resultados_diarios")
+        .select("*")
+        .order("fecha", { ascending: false }),
+    ]);
 
-  // Los retiros se agrupan una sola vez acá, no en cada tarjeta.
-  const retiros: Record<string, Retiro[]> = {};
-  for (const p of (payouts ?? []) as Retiro[]) {
-    (retiros[p.cuenta_id] ??= []).push(p);
-  }
+  const retiros = porCuenta((payouts ?? []) as Retiro[]);
+  const resultados = porCuenta((dias ?? []) as Resultado[]);
+
+  // El balance y el pico no se guardan: se calculan con los resultados
+  // diarios y los retiros, anclados en la semilla de cada cuenta. Se
+  // completan acá, una sola vez, y las pantallas los leen como siempre.
+  const conBalance = ((cuentas ?? []) as Cuenta[]).map((c) => {
+    const estado = estadoDeCuenta(
+      c,
+      resultados[c.id] ?? [],
+      retiros[c.id] ?? []
+    );
+
+    return {
+      ...c,
+      balance_actual: estado.balance,
+      pico_semilla: estado.pico,
+    };
+  });
 
   return (
     <>
@@ -37,8 +61,9 @@ export default async function CuentasPage() {
         </div>
       ) : (
         <CuentasVista
-          cuentas={(cuentas ?? []) as Cuenta[]}
+          cuentas={conBalance}
           retiros={retiros}
+          resultados={resultados}
         />
       )}
     </>

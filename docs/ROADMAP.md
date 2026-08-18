@@ -214,7 +214,7 @@ No hace falta migración: `gastos` y `payouts` ya existen desde
 
 **Resultado visible:** cargás lo que gastaste y lo que cobraste.
 
-### Paso 5b — Resultados diarios (TP / SL) — definido 2026-08-16
+### Paso 5b — Resultados diarios ✅ HECHO (2026-08-18)
 Agregado al MVP a pedido del usuario, después del Paso 5.
 
 Tabla nueva `resultados_diarios`: una fila por **día y cuenta**, con
@@ -245,6 +245,23 @@ cierre, no cero. Reglas completas en `CLAUDE.md`, sección **Drawdown**.
 
 Depende del Paso 4c: sin `modo_drawdown` y sin el pico, este campo no
 tiene dónde apoyarse.
+
+**Decisiones al implementarlo (2026-08-18):**
+- **Una fila por día**, con el neto. Se descartó contar TP y SL por día y
+  también el journal operación por operación.
+- Monto y % **sincronizados**, como el drawdown.
+- El balance **se calcula** (ver `CLAUDE.md`, sección *Resultados diarios*).
+  Los retiros dejaron de descontar del balance a mano.
+- **Semilla por cuenta**: se arranca desde el balance de hoy y se puede
+  agregar historia después; los días viejos reconstruyen la curva hacia
+  atrás sin mover el presente.
+- Se carga desde el botón **`+ Día`** de la tarjeta (y de cada fila en la
+  vista lista) o desde el ⋯. En las fondeadas hay además un botón
+  **`Retiro`**; en las evaluaciones no, porque ahí no se puede retirar.
+
+**Queda para el Paso 6** (las funciones ya están en `src/lib/resultados.ts`,
+falta la pantalla): gráfico de balance vs. piso, rachas y ratio de días
+ganadores/perdedores.
 
 Lo que habilita: rachas, días ganadores vs perdedores, ratio TP/SL,
 alertas de "estás cerca del drawdown" con datos reales, y el gráfico

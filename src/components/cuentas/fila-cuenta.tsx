@@ -24,12 +24,14 @@ export function FilaCuenta({
   onDuplicar,
   onRetiros,
   onGasto,
+  onResultado,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
   onGasto: () => void;
+  onResultado: () => void;
 }) {
   const chip = chipDeCuenta(cuenta);
   const v = variacion(cuenta);
@@ -87,12 +89,22 @@ export function FilaCuenta({
         {chip.label}
       </span>
 
+      {/* Con 20 cuentas, poder cerrar el día de todas sin abrir nada es
+          la mitad del sentido de la vista compacta. */}
+      <button
+        onClick={onResultado}
+        className="shrink-0 rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 transition hover:border-neutral-600 hover:bg-neutral-800"
+      >
+        + Día
+      </button>
+
       <MenuCuenta
         cuenta={cuenta}
         onEditar={onEditar}
         onDuplicar={onDuplicar}
         onRetiros={onRetiros}
         onGasto={onGasto}
+        onResultado={onResultado}
       />
     </div>
   );

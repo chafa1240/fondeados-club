@@ -303,12 +303,14 @@ export function MenuCuenta({
   onDuplicar,
   onRetiros,
   onGasto,
+  onResultado,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
   onDuplicar: () => void;
   onRetiros: () => void;
   onGasto: () => void;
+  onResultado: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [submenu, setSubmenu] = useState(false);
@@ -367,6 +369,17 @@ export function MenuCuenta({
             }}
           >
             Editar
+          </button>
+
+          {/* Lo que más se usa: cerrar el día y anotar cuánto hiciste. */}
+          <button
+            className={item}
+            onClick={() => {
+              setAbierto(false);
+              onResultado();
+            }}
+          >
+            Resultado del día…
           </button>
 
           {/* Duplicar: abre el mismo modal con todo precargado y el campo
@@ -518,6 +531,30 @@ function LineaRetiro({ fecha, monto }: { fecha: string; monto: string }) {
   );
 }
 
+/**
+ * Acción rápida al pie de la tarjeta.
+ *
+ * Solo van acá las cosas que se hacen seguido: cerrar el día en todas las
+ * cuentas, y retirar en las fondeadas. Duplicar, archivar o editar se usan
+ * una vez cada tanto y siguen en el menú ⋯.
+ */
+function Accion({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 transition hover:border-neutral-600 hover:bg-neutral-800"
+    >
+      {children}
+    </button>
+  );
+}
+
 function BotonVuelta({
   onClick,
   children,
@@ -544,6 +581,7 @@ export function TarjetaCuenta({
   onDuplicar,
   onRetiros,
   onGasto,
+  onResultado,
 }: {
   cuenta: Cuenta;
   retiros: Retiro[];
@@ -551,6 +589,7 @@ export function TarjetaCuenta({
   onDuplicar: () => void;
   onRetiros: () => void;
   onGasto: () => void;
+  onResultado: () => void;
 }) {
   const [dorso, setDorso] = useState(false);
 
@@ -600,6 +639,7 @@ export function TarjetaCuenta({
             onDuplicar={onDuplicar}
             onRetiros={onRetiros}
             onGasto={onGasto}
+            onResultado={onResultado}
           />
         </div>
       </div>
@@ -691,7 +731,13 @@ export function TarjetaCuenta({
         </ul>
       )}
 
-      <div className="mt-1 flex justify-end">
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="flex gap-1.5">
+          <Accion onClick={onResultado}>+ Día</Accion>
+          {/* Retirar de una evaluación no existe: la cuenta todavía no
+              cobra. Por eso el botón aparece solo en las fondeadas. */}
+          {esFondeada && <Accion onClick={onRetiros}>Retiro</Accion>}
+        </div>
         <BotonVuelta onClick={() => setDorso(true)}>+ Información…</BotonVuelta>
       </div>
     </div>

@@ -6,6 +6,8 @@ import { ModalRetiros } from "./modal-retiros";
 import { TarjetaCuenta } from "./tarjeta-cuenta";
 import { FilaCuenta } from "./fila-cuenta";
 import { ModalGasto } from "@/components/movimientos/modal-gasto";
+import { ModalResultado } from "./modal-resultado";
+import type { Resultado } from "@/lib/resultados";
 import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
@@ -80,10 +82,13 @@ const FILTROS_TODAS: FiltroEstado[] = [
 export function CuentasVista({
   cuentas,
   retiros,
+  resultados,
 }: {
   cuentas: Cuenta[];
   /** Retiros ya agrupados por cuenta, para no recorrer todo en cada tarjeta. */
   retiros: Record<string, Retiro[]>;
+  /** Resultados diarios, también agrupados por cuenta. */
+  resultados: Record<string, Resultado[]>;
 }) {
   const [pestana, setPestana] = useState<Pestana>("todas");
   // Los dos grupos permiten marcar varios a la vez. Dentro de un grupo
@@ -115,6 +120,7 @@ export function CuentasVista({
   }>(null);
   const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
   const [modalGasto, setModalGasto] = useState<Cuenta | null>(null);
+  const [modalResultado, setModalResultado] = useState<Cuenta | null>(null);
 
   function cambiarPestana(p: Pestana) {
     setPestana(p);
@@ -316,6 +322,7 @@ export function CuentasVista({
                   onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                   onRetiros={() => setModalRetiros(c)}
                   onGasto={() => setModalGasto(c)}
+                  onResultado={() => setModalResultado(c)}
                 />
               ))}
             </div>
@@ -330,6 +337,7 @@ export function CuentasVista({
                   onDuplicar={() => setModal({ cuenta: c, duplicar: true })}
                   onRetiros={() => setModalRetiros(c)}
                   onGasto={() => setModalGasto(c)}
+                  onResultado={() => setModalResultado(c)}
                 />
               ))}
             </div>
@@ -356,6 +364,14 @@ export function CuentasVista({
       >
         + Cuenta
       </button>
+
+      {modalResultado && (
+        <ModalResultado
+          cuenta={modalResultado}
+          resultados={resultados[modalResultado.id] ?? []}
+          onCerrar={() => setModalResultado(null)}
+        />
+      )}
 
       {modalGasto && (
         <ModalGasto

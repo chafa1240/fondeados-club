@@ -240,11 +240,20 @@ export type Cuenta = {
    */
   piso_congelado: number | null;
   /**
-   * Balance más alto que alcanzó la cuenta. Hoy se actualiza cada vez que
-   * sube el balance; con el Paso 5b pasa a ser solo la semilla (el pico
-   * previo a usar la app) y el resto se deriva de los resultados diarios.
+   * Pico cargado a mano. Desde el Paso 5b el pico real se calcula con los
+   * resultados diarios (`estadoDeCuenta`) y esto es el piso de ese
+   * cálculo: sirve para cuentas con historia previa a la app y para
+   * corregir a mano un flotante que no quedó registrado.
    */
   pico_semilla: number;
+  /**
+   * Desde dónde arranca a contarse el balance. El balance de hoy es
+   * `balance_semilla` + resultados − retiros posteriores a
+   * `fecha_semilla`. Los días anteriores a esa fecha no mueven el
+   * presente: reconstruyen la curva hacia atrás.
+   */
+  balance_semilla: number;
+  fecha_semilla: string;
   /** Solo evaluaciones: las reglas y el costo de la evaluación. */
   regla_consistencia: number | null;
   precio: number | null;
@@ -363,6 +372,13 @@ export function montoDesdePiso(tamano: number, piso: number) {
 }
 
 /* ---------- Cálculos de la cuenta ---------- */
+
+/**
+ * El balance ya no se guarda: se calcula con los resultados diarios.
+ * `balance_actual` queda en el tipo porque las pantallas lo leen, pero lo
+ * completa la página con `estadoDeCuenta()` antes de pasar las cuentas a
+ * los componentes. Ver `src/lib/resultados.ts`.
+ */
 
 /** Ganancia (o pérdida) acumulada desde el balance base. */
 export function variacion(cuenta: Cuenta) {

@@ -162,6 +162,11 @@ function datosDesdeForm(fd: FormData) {
     modo_drawdown,
     piso_congelado,
     pico_semilla,
+    // Desde el Paso 5b el balance se calcula: lo que se guarda es desde
+    // dónde empieza a contarse.
+    balance_semilla: balance === null ? tamano_cuenta : balance,
+    fecha_semilla:
+      texto(fd, "fecha_semilla") ?? new Date().toISOString().slice(0, 10),
     profit_split: conRetiro ? numero(fd, "profit_split") : null,
     objetivo_retiro: conRetiro ? numero(fd, "objetivo_retiro") : null,
     balance_objetivo: conRetiro ? balance_objetivo : null,
@@ -198,6 +203,7 @@ function datosDesdeForm(fd: FormData) {
     const alPasar = balanceAlPasar(datos);
     if (alPasar !== null) {
       datos.balance_actual = alPasar;
+      datos.balance_semilla = alPasar;
       // Ese balance también es un máximo nuevo: el piso lo acompaña.
       datos.pico_semilla = Math.max(datos.pico_semilla, alPasar);
     }
@@ -308,6 +314,8 @@ export async function cambiarEstado(
   const cambios: {
     estado: Estado;
     balance_actual?: number;
+    balance_semilla?: number;
+    fecha_semilla?: string;
     pico_semilla?: number;
     fecha_cierre?: string | null;
   } = { estado };
@@ -342,7 +350,11 @@ export async function cambiarEstado(
     if (estado === "passed") {
       const balance = balanceAlPasar(cuenta);
       if (balance !== null) {
+        // La semilla se corre a hoy: el balance de una evaluación pasada
+        // es el objetivo, sin importar los días cargados antes.
         cambios.balance_actual = balance;
+        cambios.balance_semilla = balance;
+        cambios.fecha_semilla = new Date().toISOString().slice(0, 10);
         cambios.pico_semilla = Math.max(cuenta.pico_semilla ?? 0, balance);
       }
     }
@@ -367,6 +379,14 @@ export async function eliminarCuenta(id: string) {
   revalidatePath("/cuentas");
 }
 
+/**
+ * Ajustar el balance a mano.
+ *
+ * Desde el Paso 5b el balance es un cálculo, así que esto no lo escribe
+ * directo: **corre la semilla a hoy** con el número que pusiste. Los
+ * resultados que ya estén cargados con fecha de hoy o anteriores quedan
+ * absorbidos por la semilla, y el balance da exactamente lo que escribiste.
+ */
 export async function actualizarBalance(
   _prev: EstadoForm,
   fd: FormData,
@@ -390,6 +410,8 @@ export async function actualizarBalance(
     .from("cuentas_fondeo")
     .update({
       balance_actual: balance,
+      balance_semilla: balance,
+      fecha_semilla: new Date().toISOString().slice(0, 10),
       pico_semilla: Math.max(cuenta?.pico_semilla ?? 0, balance),
     })
     .eq("id", id);
@@ -423,7 +445,7 @@ export async function registrarRetiro(
 
   const { data: cuenta, error: errorLectura } = await supabase
     .from("cuentas_fondeo")
-    .select("balance_actual, profit_split")
+    .select("profit_split")
     .eq("id", cuenta_id)
     .single();
 
@@ -452,16 +474,9 @@ export async function registrarRetiro(
 
   if (errorRetiro) return { error: mensajeDeError(errorRetiro.message) };
 
-  const { error: errorBalance } = await supabase
-    .from("cuentas_fondeo")
-    .update({ balance_actual: cuenta.balance_actual - monto })
-    .eq("id", cuenta_id);
-
-  if (errorBalance) return { error: mensajeDeError(errorBalance.message) };
-
-  // El retiro se ve en las dos pantallas: la tarjeta y la lista de
-  // movimientos. Se puede cargar desde cualquiera de las dos, así que las
-  // dos se refrescan.
+  // Ya no se toca `balance_actual`: el balance se calcula, y el retiro
+  // entra en ese cálculo como un evento más (ver `estadoDeCuenta`). Antes
+  // se descontaba a mano acá, y eso era una segunda fuente de verdad.
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
   return { ok: "Retiro registrado." };
@@ -498,7 +513,7 @@ export async function actualizarRetiro(
 
   const { data: cuenta } = await supabase
     .from("cuentas_fondeo")
-    .select("balance_actual, profit_split")
+    .select("profit_split")
     .eq("id", previo.cuenta_id)
     .single();
 
@@ -519,15 +534,8 @@ export async function actualizarRetiro(
 
   if (error) return { error: mensajeDeError(error.message) };
 
-  // El balance se corrige por la diferencia: se le devuelve lo que se había
-  // descontado y se le descuenta lo nuevo.
-  const { error: errorBalance } = await supabase
-    .from("cuentas_fondeo")
-    .update({ balance_actual: cuenta.balance_actual + previo.monto - monto })
-    .eq("id", previo.cuenta_id);
-
-  if (errorBalance) return { error: mensajeDeError(errorBalance.message) };
-
+  // El balance se recalcula solo con el monto nuevo: no hay nada que
+  // corregir a mano.
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
   return { ok: "Retiro actualizado." };
@@ -539,29 +547,10 @@ export async function eliminarRetiro(id: string, cuenta_id: string) {
 
   const supabase = createClient();
 
-  const { data: retiro } = await supabase
-    .from("payouts")
-    .select("monto")
-    .eq("id", id)
-    .single();
-
-  if (!retiro) return;
-
+  // Borrar la fila alcanza: al desaparecer de la serie, el balance vuelve
+  // solo a lo que era. Antes había que leer el monto para devolvérselo a
+  // la cuenta a mano.
   await supabase.from("payouts").delete().eq("id", id);
-
-  const { data: cuenta } = await supabase
-    .from("cuentas_fondeo")
-    .select("balance_actual")
-    .eq("id", cuenta_id)
-    .single();
-
-  if (cuenta) {
-    await supabase
-      .from("cuentas_fondeo")
-      .update({ balance_actual: cuenta.balance_actual + retiro.monto })
-      .eq("id", cuenta_id);
-  }
-
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
 }

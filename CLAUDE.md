@@ -101,11 +101,15 @@ Está en la sección **Drawdown** al final de este archivo.
 **máximo del día** (el otro pedazo del mismo diseño) entra recién con el
 Paso 5b, porque vive en la fila diaria.
 
-Próximo paso: Paso 5 del roadmap — gastos y payouts. Después viene el
-**Paso 5b: resultados diarios (TP/SL)**, agregado al MVP el 2026-08-16 —
-una fila por día y cuenta con cantidad de TP, cantidad de SL y el neto del
-día, y a partir de ahí el **balance pasa a calcularse solo** (deja de
-cargarse a mano). Detalle en `ROADMAP.md`.
+**Paso 5 (gastos y movimientos) y Paso 5b (resultados diarios) hechos el
+2026-08-17/18.** El Funding Manager tiene la lista de movimientos con
+filtros, y el balance de cada cuenta **ya no se guarda: se calcula** con
+los resultados diarios y los retiros. Detalle en `ROADMAP.md` y en la
+sección **Resultados diarios** de este archivo.
+
+Próximo paso: Paso 6 — Funding Manager con gráficos (ahí entran el gráfico
+de balance vs. piso, las rachas y el ratio de días, que ya tienen las
+funciones escritas en `src/lib/resultados.ts` pero no la pantalla).
 
 **Nota técnica**: `npm run build` no se puede correr desde el entorno de
 Claude (el `node_modules` está instalado para Windows y el sandbox no
@@ -263,10 +267,63 @@ otro), `monto`, `fecha`, `descripcion`.
 Una fila por cobro. Campos: `cuenta_id` (obligatorio, un payout siempre
 es de una cuenta), `monto`, `fecha`, `notas`.
 
+### resultados_diarios (Paso 5b, migración 011)
+Una fila por **día y cuenta**: `fecha`, `monto` (neto del día, puede ser
+negativo), `pct` (el mismo número sobre el tamaño de cuenta), `pico_dia` y
+`notas`. Índice único por (`cuenta_id`, `fecha`): un día tiene un solo
+resultado, así que el alta es un **upsert** — volver a cargar el mismo día
+lo corrige en vez de duplicarlo.
+
 ### RLS
-Las 3 tablas tienen RLS activado con policies `auth.uid() = user_id` para
+Las 4 tablas tienen RLS activado con policies `auth.uid() = user_id` para
 select/insert/update/delete — cada usuario ve y edita solo lo suyo.
 `user_id` default `auth.uid()` en las 3 tablas.
+
+## Resultados diarios y balance calculado (2026-08-18)
+
+Desde el Paso 5b el balance **no es un dato guardado**:
+
+```
+balance = balance_semilla + resultados − retiros
+```
+
+Por qué: antes `balance_actual` se editaba a mano y además lo tocaba
+`registrarRetiro()`. Dos escritores del mismo número es donde aparecen las
+cuentas que no cierran. Ahora hay una sola fuente (los movimientos) y el
+balance es una vista de eso. `estadoDeCuenta()` en `src/lib/resultados.ts`
+lo calcula, y `cuentas/page.tsx` completa `balance_actual` y
+`pico_semilla` antes de pasarle las cuentas a las pantallas.
+
+**Consecuencia**: los retiros ya **no** descuentan del balance a mano.
+Insertan en `payouts` y listo; el descuento sale del cálculo.
+
+### La semilla
+`balance_semilla` + `fecha_semilla` son el ancla: "esta cuenta tenía tanto
+tal día". No hace falta cargar la historia completa de cada cuenta.
+
+El cálculo suma todos los eventos en orden y después corre la curva entera
+para que el valor en `fecha_semilla` dé justo `balance_semilla`. Por eso:
+
+- días **posteriores** a la semilla empujan el balance de hoy;
+- días **anteriores** reconstruyen la curva hacia atrás **sin tocar el
+  presente** (ya están adentro de la semilla).
+
+El balance editable de la tarjeta sigue existiendo, pero ahora **corre la
+semilla a hoy** con el número que se escriba: es la salida rápida cuando
+algo no cuadra.
+
+### Máximo del día
+`pico_dia` se carga como **delta** ("llegué a estar +800 arriba") y se mide
+desde el balance con el que abrió el día. Aparece solo en cuentas
+`trailing` no congeladas. Mueve **solo el piso**, nunca el balance. Si el
+máximo cargado es menor al neto del día se toma el neto (no se puede haber
+tocado +100 como máximo si cerraste +200).
+
+### Robustez
+`estadoDeCuenta()` acepta la cuenta **sin** los campos de semilla y cae al
+`balance_actual` viejo. Se agregó después de que, con la migración a medio
+correr, la pantalla se llenara de `NaN`: un cálculo que depende de una
+columna nueva tiene que degradar, no romper.
 
 ## Drawdown (definido e implementado 2026-08-17)
 
