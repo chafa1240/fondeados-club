@@ -5,6 +5,7 @@ import type { Cuenta, Retiro } from "@/lib/cuentas";
 import {
   estadoDeCuenta,
   porCuenta,
+  type Punto,
   type Resultado,
 } from "@/lib/resultados";
 
@@ -33,12 +34,20 @@ export default async function CuentasPage() {
   // El balance y el pico no se guardan: se calculan con los resultados
   // diarios y los retiros, anclados en la semilla de cada cuenta. Se
   // completan acá, una sola vez, y las pantallas los leen como siempre.
+  //
+  // La serie también sale de acá y se pasa hecha. Recalcularla más abajo
+  // con la cuenta ya completada daría mal: el pico calculado quedaría como
+  // punto de partida y el piso arrancaría en su valor final, plano.
+  const series: Record<string, Punto[]> = {};
+
   const conBalance = ((cuentas ?? []) as Cuenta[]).map((c) => {
     const estado = estadoDeCuenta(
       c,
       resultados[c.id] ?? [],
       retiros[c.id] ?? []
     );
+
+    series[c.id] = estado.serie;
 
     return {
       ...c,
@@ -64,6 +73,7 @@ export default async function CuentasPage() {
           cuentas={conBalance}
           retiros={retiros}
           resultados={resultados}
+          series={series}
         />
       )}
     </>

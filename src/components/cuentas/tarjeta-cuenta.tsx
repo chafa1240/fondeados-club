@@ -305,6 +305,7 @@ export function MenuCuenta({
   onRetiros,
   onGasto,
   onResultado,
+  onCurva,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
@@ -312,6 +313,7 @@ export function MenuCuenta({
   onRetiros: () => void;
   onGasto: () => void;
   onResultado: () => void;
+  onCurva: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [submenu, setSubmenu] = useState(false);
@@ -381,6 +383,16 @@ export function MenuCuenta({
             }}
           >
             Resultado del día…
+          </button>
+
+          <button
+            className={item}
+            onClick={() => {
+              setAbierto(false);
+              onCurva();
+            }}
+          >
+            Curva…
           </button>
 
           {/* Duplicar: abre el mismo modal con todo precargado y el campo
@@ -584,6 +596,7 @@ export function TarjetaCuenta({
   onRetiros,
   onGasto,
   onResultado,
+  onCurva,
 }: {
   cuenta: Cuenta;
   retiros: Retiro[];
@@ -593,6 +606,7 @@ export function TarjetaCuenta({
   onRetiros: () => void;
   onGasto: () => void;
   onResultado: () => void;
+  onCurva: () => void;
 }) {
   const [dorso, setDorso] = useState(false);
 
@@ -649,6 +663,7 @@ export function TarjetaCuenta({
             onRetiros={onRetiros}
             onGasto={onGasto}
             onResultado={onResultado}
+            onCurva={onCurva}
           />
         </div>
       </div>

@@ -44,6 +44,10 @@ export type CuentaSerie = {
   balance_semilla?: number | null;
   fecha_semilla?: string | null;
   pico_semilla?: number | null;
+  /** Para dibujar el piso del drawdown día por día. */
+  modo_drawdown?: string | null;
+  drawdown_maximo_monto?: number | null;
+  piso_congelado?: number | null;
 };
 
 /** Un número que sirva para calcular, o el de reserva. */
@@ -57,6 +61,10 @@ export type Punto = {
   balance: number;
   /** Lo más alto que estuvo ese día (con el flotante, si se cargó). */
   maximo: number;
+  /** Hasta dónde podía caer ese día sin quemarse. null = sin drawdown cargado. */
+  piso: number | null;
+  /** El neto del día, si ese punto es un resultado y no un retiro. */
+  monto: number | null;
 };
 
 export type EstadoCuenta = {
@@ -82,19 +90,26 @@ export function estadoDeCuenta(
   resultados: Resultado[],
   retiros: Retiro[]
 ): EstadoCuenta {
-  type Evento = { fecha: string; delta: number; picoDia: number | null };
+  type Evento = {
+    fecha: string;
+    delta: number;
+    picoDia: number | null;
+    esResultado: boolean;
+  };
 
   const eventos: Evento[] = [
     ...resultados.map((r) => ({
       fecha: r.fecha,
       delta: r.monto,
       picoDia: r.pico_dia,
+      esResultado: true,
     })),
     // Un retiro saca plata de la cuenta igual que un día perdedor.
     ...retiros.map((r) => ({
       fecha: r.fecha,
       delta: -r.monto,
       picoDia: null,
+      esResultado: false,
     })),
   ].sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
 
@@ -121,7 +136,29 @@ export function estadoDeCuenta(
     numeroOAlternativa(cuenta.pico_semilla, 0)
   );
   let acumulado = 0;
-  const serie: Punto[] = [];
+
+  /** El piso del drawdown con el pico acumulado hasta ese momento. */
+  const pisoCon = (picoHasta: number): number | null => {
+    const dd = cuenta.drawdown_maximo_monto;
+    if (dd === null || dd === undefined) return null;
+
+    if (cuenta.modo_drawdown === "estatico") return cuenta.tamano_cuenta - dd;
+
+    const piso = picoHasta - dd;
+    const tope = cuenta.piso_congelado;
+    return tope === null || tope === undefined ? piso : Math.min(piso, tope);
+  };
+
+  // El primer punto es de dónde arranca la curva, antes de cualquier
+  // movimiento: sin él el gráfico empezaría en el primer día cargado y no
+  // se vería de dónde venía la cuenta.
+  const arranque = eventos.length > 0 && eventos[0].fecha < cuenta.fecha_inicio
+    ? eventos[0].fecha
+    : cuenta.fecha_inicio;
+
+  const serie: Punto[] = [
+    { fecha: arranque, balance: offset, maximo: offset, piso: pisoCon(pico), monto: null },
+  ];
 
   for (const e of eventos) {
     // Lo alto que estuvo dentro del día se mide desde el balance con el
@@ -136,7 +173,13 @@ export function estadoDeCuenta(
         : Math.max(apertura + e.picoDia, apertura, balance);
 
     pico = Math.max(pico, maximo);
-    serie.push({ fecha: e.fecha, balance, maximo });
+    serie.push({
+      fecha: e.fecha,
+      balance,
+      maximo,
+      piso: pisoCon(pico),
+      monto: e.esResultado ? e.delta : null,
+    });
   }
 
   const balance = acumulado + offset;

@@ -25,6 +25,7 @@ export function FilaCuenta({
   onRetiros,
   onGasto,
   onResultado,
+  onCurva,
 }: {
   cuenta: Cuenta;
   onEditar: () => void;
@@ -32,6 +33,7 @@ export function FilaCuenta({
   onRetiros: () => void;
   onGasto: () => void;
   onResultado: () => void;
+  onCurva: () => void;
 }) {
   const chip = chipDeCuenta(cuenta);
   const v = variacion(cuenta);
@@ -105,6 +107,7 @@ export function FilaCuenta({
         onRetiros={onRetiros}
         onGasto={onGasto}
         onResultado={onResultado}
+        onCurva={onCurva}
       />
     </div>
   );

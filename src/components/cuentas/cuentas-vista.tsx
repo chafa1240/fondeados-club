@@ -7,7 +7,8 @@ import { TarjetaCuenta } from "./tarjeta-cuenta";
 import { FilaCuenta } from "./fila-cuenta";
 import { ModalGasto } from "@/components/movimientos/modal-gasto";
 import { ModalResultado } from "./modal-resultado";
-import type { Resultado } from "@/lib/resultados";
+import { ModalCurva } from "./modal-curva";
+import type { Punto, Resultado } from "@/lib/resultados";
 import {
   ESTADO_PLURAL,
   FILTROS_POR_TIPO,
@@ -83,12 +84,15 @@ export function CuentasVista({
   cuentas,
   retiros,
   resultados,
+  series,
 }: {
   cuentas: Cuenta[];
   /** Retiros ya agrupados por cuenta, para no recorrer todo en cada tarjeta. */
   retiros: Record<string, Retiro[]>;
   /** Resultados diarios, también agrupados por cuenta. */
   resultados: Record<string, Resultado[]>;
+  /** La curva de cada cuenta, ya calculada en el servidor. */
+  series: Record<string, Punto[]>;
 }) {
   const [pestana, setPestana] = useState<Pestana>("todas");
   // Los dos grupos permiten marcar varios a la vez. Dentro de un grupo
@@ -121,6 +125,7 @@ export function CuentasVista({
   const [modalRetiros, setModalRetiros] = useState<Cuenta | null>(null);
   const [modalGasto, setModalGasto] = useState<Cuenta | null>(null);
   const [modalResultado, setModalResultado] = useState<Cuenta | null>(null);
+  const [modalCurva, setModalCurva] = useState<Cuenta | null>(null);
 
   function cambiarPestana(p: Pestana) {
     setPestana(p);
@@ -323,6 +328,7 @@ export function CuentasVista({
                   onRetiros={() => setModalRetiros(c)}
                   onGasto={() => setModalGasto(c)}
                   onResultado={() => setModalResultado(c)}
+                  onCurva={() => setModalCurva(c)}
                 />
               ))}
             </div>
@@ -339,6 +345,7 @@ export function CuentasVista({
                   onRetiros={() => setModalRetiros(c)}
                   onGasto={() => setModalGasto(c)}
                   onResultado={() => setModalResultado(c)}
+                  onCurva={() => setModalCurva(c)}
                 />
               ))}
             </div>
@@ -365,6 +372,15 @@ export function CuentasVista({
       >
         + Cuenta
       </button>
+
+      {modalCurva && (
+        <ModalCurva
+          cuenta={modalCurva}
+          serie={series[modalCurva.id] ?? []}
+          resultados={resultados[modalCurva.id] ?? []}
+          onCerrar={() => setModalCurva(null)}
+        />
+      )}
 
       {modalResultado && (
         <ModalResultado
