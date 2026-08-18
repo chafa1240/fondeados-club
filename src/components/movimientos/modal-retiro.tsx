@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   actualizarRetiro,
   registrarRetiro,
   type EstadoForm,
 } from "@/app/(app)/cuentas/actions";
-import type { Retiro } from "@/lib/cuentas";
+import { netoConSplit, netoDeRetiro, plata, type Retiro } from "@/lib/cuentas";
 import type { CuentaBreve } from "./modal-gasto";
 
 const INPUT =
@@ -40,14 +40,52 @@ export function ModalRetiro({
   retiro,
   /** Nombre de la cuenta del retiro que se está editando. */
   cuentaNombre,
+  /** Profit split de esa cuenta, para recalcular el neto al editar. */
+  split = null,
   onCerrar,
 }: {
   fondeadas: CuentaBreve[];
   retiro?: Retiro;
   cuentaNombre?: string;
+  split?: number | null;
   onCerrar: () => void;
 }) {
   const esEdicion = !!retiro;
+
+  // Al elegir cuenta cambia el split, y con él lo que vas a cobrar.
+  const [cuentaId, setCuentaId] = useState(
+    retiro?.cuenta_id ?? fondeadas[0]?.id ?? ""
+  );
+  const [monto, setMonto] = useState(retiro ? String(retiro.monto) : "");
+  const [neto, setNeto] = useState(
+    retiro ? String(netoDeRetiro(retiro)) : ""
+  );
+
+  const splitActual = esEdicion
+    ? split
+    : (fondeadas.find((c) => c.id === cuentaId)?.profit_split ?? null);
+
+  /**
+   * El neto se completa solo con el profit split, pero queda editable: el
+   * número real depende de comisiones de transferencia y de reglas que
+   * cambian por firm (en Apex, los primeros USD 25.000 se pagan al 100%).
+   */
+  function cambiarMonto(v: string) {
+    setMonto(v);
+    const n = Number(v.replace(",", "."));
+    setNeto(
+      v === "" || !Number.isFinite(n) ? "" : String(netoConSplit(n, splitActual))
+    );
+  }
+
+  function cambiarCuenta(v: string) {
+    setCuentaId(v);
+    const nuevo = fondeadas.find((c) => c.id === v)?.profit_split ?? null;
+    const n = Number(monto.replace(",", "."));
+    if (monto !== "" && Number.isFinite(n)) {
+      setNeto(String(netoConSplit(n, nuevo)));
+    }
+  }
 
   const [estado, formAction] = useFormState<EstadoForm, FormData>(
     esEdicion ? actualizarRetiro : registrarRetiro,
@@ -105,7 +143,13 @@ export function ModalRetiro({
                 <span className="mb-1.5 block text-sm text-neutral-300">
                   Cuenta
                 </span>
-                <select name="cuenta_id" required className={INPUT}>
+                <select
+                  name="cuenta_id"
+                  required
+                  value={cuentaId}
+                  onChange={(e) => cambiarCuenta(e.target.value)}
+                  className={INPUT}
+                >
                   {fondeadas.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nombre} · {c.firm}
@@ -126,23 +170,45 @@ export function ModalRetiro({
                   inputMode="decimal"
                   autoFocus
                   placeholder="500"
-                  defaultValue={retiro ? String(retiro.monto) : ""}
+                  value={monto}
+                  onChange={(e) => cambiarMonto(e.target.value)}
                   className={INPUT}
                 />
+                <span className="mt-1 block text-xs text-neutral-500">
+                  Lo que sale de la cuenta
+                </span>
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm text-neutral-300">Fecha</span>
+                <span className="mb-1.5 block text-sm text-neutral-300">
+                  Lo que cobraste (USD)
+                </span>
                 <input
-                  name="fecha"
-                  type="date"
-                  defaultValue={
-                    retiro?.fecha ?? new Date().toISOString().slice(0, 10)
-                  }
+                  name="monto_neto"
+                  inputMode="decimal"
+                  value={neto}
+                  onChange={(e) => setNeto(e.target.value)}
                   className={INPUT}
                 />
+                <span className="mt-1 block text-xs text-neutral-500">
+                  {splitActual !== null && splitActual < 100
+                    ? `Calculado con el profit split ${splitActual}%. Editalo si cobraste otra cosa.`
+                    : "Sin profit split cargado: se asume que cobrás todo."}
+                </span>
               </label>
             </div>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm text-neutral-300">Fecha</span>
+              <input
+                name="fecha"
+                type="date"
+                defaultValue={
+                  retiro?.fecha ?? new Date().toISOString().slice(0, 10)
+                }
+                className={INPUT}
+              />
+            </label>
 
             <label className="block">
               <span className="mb-1.5 block text-sm text-neutral-300">Notas</span>
@@ -157,7 +223,9 @@ export function ModalRetiro({
             <p className="text-xs text-neutral-500">
               {esEdicion
                 ? "El balance de la cuenta se corrige por la diferencia."
-                : "El monto se descuenta del balance de la cuenta."}
+                : "El monto se descuenta del balance de la cuenta."}{" "}
+              El Funding Manager cuenta como cobrado{" "}
+              {neto === "" ? "lo que pongas arriba" : plata(Number(neto) || 0, 2)}.
             </p>
 
             {estado.error && (

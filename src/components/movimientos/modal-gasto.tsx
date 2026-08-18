@@ -14,7 +14,13 @@ const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900 disabled:text-neutral-600";
 
 /** Lo mínimo que necesita el selector de cuenta. */
-export type CuentaBreve = { id: string; nombre: string; firm: string };
+export type CuentaBreve = {
+  id: string;
+  nombre: string;
+  firm: string;
+  /** Hace falta para calcular el neto de un retiro. */
+  profit_split?: number | null;
+};
 
 function Campo({
   label,

@@ -194,7 +194,12 @@ export function MovimientosVista({
   const [modal, setModal] = useState<
     | null
     | { que: "gasto"; gasto?: Gasto }
-    | { que: "retiro"; retiro?: Retiro; cuentaNombre?: string }
+    | {
+        que: "retiro";
+        retiro?: Retiro;
+        cuentaNombre?: string;
+        split?: number | null;
+      }
     | {
         que: "campo";
         campo: CampoCuenta;
@@ -224,6 +229,7 @@ export function MovimientosVista({
         que: "retiro",
         retiro: retiros.find((r) => r.id === m.id),
         cuentaNombre: nombres(m.cuenta_id),
+        split: m.cuenta_id ? (porId.get(m.cuenta_id)?.profit_split ?? null) : null,
       });
     }
 
@@ -458,6 +464,7 @@ export function MovimientosVista({
           fondeadas={fondeadas}
           retiro={modal.retiro}
           cuentaNombre={modal.cuentaNombre}
+          split={modal.split}
           onCerrar={() => setModal(null)}
         />
       )}

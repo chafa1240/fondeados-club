@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   eliminarRetiro,
@@ -9,6 +9,8 @@ import {
 } from "@/app/(app)/cuentas/actions";
 import {
   fechaCorta,
+  netoConSplit,
+  netoDeRetiro,
   plata,
   totalRetirado,
   type Cuenta,
@@ -40,6 +42,9 @@ function Fila({ retiro }: { retiro: Retiro }) {
         <p className="text-sm text-neutral-200">{plata(retiro.monto, 2)}</p>
         <p className="text-xs text-neutral-500">
           {fechaCorta(retiro.fecha)}
+          {netoDeRetiro(retiro) !== retiro.monto
+            ? ` · cobraste ${plata(netoDeRetiro(retiro), 2)}`
+            : ""}
           {retiro.notas ? ` · ${retiro.notas}` : ""}
         </p>
       </div>
@@ -72,6 +77,21 @@ export function ModalRetiros({
     registrarRetiro,
     {}
   );
+
+  // El bruto sale de la cuenta; el neto es lo que cobrás después del
+  // profit split. Se completa solo pero queda editable — ver el comentario
+  // en `modal-retiro.tsx` del Funding Manager.
+  const [monto, setMonto] = useState("");
+  const [neto, setNeto] = useState("");
+  const split = cuenta.profit_split;
+
+  function cambiarMonto(v: string) {
+    setMonto(v);
+    const n = Number(v.replace(",", "."));
+    setNeto(
+      v === "" || !Number.isFinite(n) ? "" : String(netoConSplit(n, split))
+    );
+  }
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
@@ -119,6 +139,21 @@ export function ModalRetiros({
                 inputMode="decimal"
                 autoFocus
                 placeholder="500"
+                value={monto}
+                onChange={(e) => cambiarMonto(e.target.value)}
+                className={INPUT}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm text-neutral-300">
+                Lo que cobraste (USD)
+              </span>
+              <input
+                name="monto_neto"
+                inputMode="decimal"
+                value={neto}
+                onChange={(e) => setNeto(e.target.value)}
                 className={INPUT}
               />
             </label>
@@ -140,7 +175,10 @@ export function ModalRetiros({
           </label>
 
           <p className="text-xs text-neutral-500">
-            El monto se descuenta del balance de la cuenta.
+            El monto retirado se descuenta del balance de la cuenta.{" "}
+            {split !== null && split < 100
+              ? `Lo cobrado se calcula con el profit split ${split}%, y se puede corregir.`
+              : "Sin profit split cargado se asume que cobrás todo."}
           </p>
 
           {estado.error && (

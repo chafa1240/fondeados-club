@@ -5,7 +5,7 @@
  * no dentro de las pantallas, así se reusa tal cual en la app móvil.
  */
 
-import type { Retiro } from "./cuentas";
+import { netoDeRetiro, plata, type Retiro } from "./cuentas";
 
 /* ---------- Categorías de gasto ---------- */
 
@@ -227,15 +227,25 @@ export function movimientosDe(
     detalle: g.descripcion,
   }));
 
-  const deRetiros: Movimiento[] = retiros.map((r) => ({
-    id: r.id,
-    tipo: "retiro",
-    fecha: r.fecha,
-    monto: r.monto,
-    cuenta_id: r.cuenta_id,
-    categoria: null,
-    detalle: r.notas,
-  }));
+  // En un retiro el monto que cuenta como "cobrado" es el neto: lo que
+  // realmente entró después del profit split. El bruto (lo que salió de la
+  // cuenta) se aclara al costado cuando son distintos.
+  const deRetiros: Movimiento[] = retiros.map((r) => {
+    const neto = netoDeRetiro(r);
+    const partido = neto !== r.monto;
+
+    return {
+      id: r.id,
+      tipo: "retiro" as const,
+      fecha: r.fecha,
+      monto: neto,
+      cuenta_id: r.cuenta_id,
+      categoria: null,
+      detalle: partido
+        ? `De ${plata(r.monto, 2)} retirados${r.notas ? ` · ${r.notas}` : ""}`
+        : r.notas,
+    };
+  });
 
   return ordenarMovimientos([
     ...deGastos,

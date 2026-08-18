@@ -266,10 +266,32 @@ export type Cuenta = {
 export type Retiro = {
   id: string;
   cuenta_id: string;
+  /** Lo que sale de la cuenta: es lo que mueve el balance. */
   monto: number;
+  /**
+   * Lo que entra a tu bolsillo, después del profit split.
+   * null = cobraste el total (split 100%).
+   */
+  monto_neto: number | null;
   fecha: string;
   notas: string | null;
 };
+
+/** Lo efectivamente cobrado de un retiro. */
+export function netoDeRetiro(retiro: Retiro) {
+  return retiro.monto_neto ?? retiro.monto;
+}
+
+/**
+ * Cuánto queda de un retiro después del profit split de la cuenta.
+ *
+ * Se redondea a centavos: un split de 90% sobre 333 da 299,7 y no tiene
+ * sentido arrastrar más decimales que los que paga la firm.
+ */
+export function netoConSplit(monto: number, profitSplit: number | null) {
+  if (profitSplit === null || profitSplit >= 100) return monto;
+  return Math.round(((monto * profitSplit) / 100) * 100) / 100;
+}
 
 /**
  * Total retirado de una cuenta: el arrastre inicial más todos los retiros

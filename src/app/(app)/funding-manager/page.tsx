@@ -28,7 +28,7 @@ export default async function FundingManagerPage() {
       supabase
         .from("cuentas_fondeo")
         .select(
-          "id, nombre, firm, tipo, fecha_inicio, created_at, precio, fee_activacion, retiros_previos",
+          "id, nombre, firm, tipo, fecha_inicio, created_at, precio, fee_activacion, retiros_previos, profit_split",
         ),
     ]);
 

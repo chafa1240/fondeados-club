@@ -12,6 +12,7 @@ import {
   MODOS_DRAWDOWN,
   MODO_DRAWDOWN_DEFAULT,
   type ModoDrawdown,
+  netoConSplit,
   nombresParaLote,
   tieneRetiro,
   TIPOS,
@@ -120,8 +121,15 @@ function datosDesdeForm(fd: FormData) {
 
   // El pico nunca puede estar por debajo del balance ni del tamaño: si no,
   // el piso daría más bajo del real y la cuenta parecería más sana.
+  //
+  // `picoExplicito` distingue "el usuario escribió un pico" de "el campo
+  // vino vacío". Es lo que después decide si se puede BAJAR: escrito a
+  // mano manda, vacío no puede pisar el máximo ya guardado.
+  const picoDelForm = numero(fd, "pico_semilla");
+  const picoExplicito = picoDelForm !== null;
+
   const pico_semilla = Math.max(
-    numero(fd, "pico_semilla") ?? 0,
+    picoDelForm ?? 0,
     balance === null ? tamano_cuenta : balance,
     tamano_cuenta
   );
@@ -195,7 +203,7 @@ function datosDesdeForm(fd: FormData) {
     }
   }
 
-  return { datos };
+  return { datos, picoExplicito };
 }
 
 /* ---------- alta / edición ---------- */
@@ -221,13 +229,19 @@ export async function guardarCuenta(
       .eq("id", id)
       .single();
 
-    const datos = {
-      ...parsed.datos,
-      pico_semilla: Math.max(
-        parsed.datos.pico_semilla,
-        previa?.pico_semilla ?? 0
-      ),
-    };
+    // Si el usuario escribió un pico, manda el suyo aunque sea menor: ese
+    // campo existe justamente para corregir un pico mal cargado. El máximo
+    // con el guardado se aplica SOLO cuando el campo vino vacío, para que
+    // abrir y guardar el modal no le borre el pico a una cuenta trailing.
+    const datos = parsed.picoExplicito
+      ? parsed.datos
+      : {
+          ...parsed.datos,
+          pico_semilla: Math.max(
+            parsed.datos.pico_semilla,
+            previa?.pico_semilla ?? 0
+          ),
+        };
 
     const { error } = await supabase
       .from("cuentas_fondeo")
@@ -409,7 +423,7 @@ export async function registrarRetiro(
 
   const { data: cuenta, error: errorLectura } = await supabase
     .from("cuentas_fondeo")
-    .select("balance_actual")
+    .select("balance_actual, profit_split")
     .eq("id", cuenta_id)
     .single();
 
@@ -417,9 +431,21 @@ export async function registrarRetiro(
     return { error: "No se encontró la cuenta." };
   }
 
+  // El neto lo puede mandar el formulario (el usuario lo corrigió) o sale
+  // del profit split de la cuenta. Se calcula acá y no solo en la pantalla
+  // para que el alta desde la tarjeta también lo guarde bien.
+  const neto = numero(fd, "monto_neto");
+  const monto_neto =
+    neto !== null ? neto : netoConSplit(monto, cuenta.profit_split);
+
+  if (monto_neto > monto) {
+    return { error: "Lo cobrado no puede ser mayor a lo retirado." };
+  }
+
   const { error: errorRetiro } = await supabase.from("payouts").insert({
     cuenta_id,
     monto,
+    monto_neto,
     fecha,
     notas: texto(fd, "notas"),
   });
@@ -472,15 +498,23 @@ export async function actualizarRetiro(
 
   const { data: cuenta } = await supabase
     .from("cuentas_fondeo")
-    .select("balance_actual")
+    .select("balance_actual, profit_split")
     .eq("id", previo.cuenta_id)
     .single();
 
   if (!cuenta) return { error: "No se encontró la cuenta." };
 
+  const neto = numero(fd, "monto_neto");
+  const monto_neto =
+    neto !== null ? neto : netoConSplit(monto, cuenta.profit_split);
+
+  if (monto_neto > monto) {
+    return { error: "Lo cobrado no puede ser mayor a lo retirado." };
+  }
+
   const { error } = await supabase
     .from("payouts")
-    .update({ monto, fecha, notas: texto(fd, "notas") })
+    .update({ monto, monto_neto, fecha, notas: texto(fd, "notas") })
     .eq("id", id);
 
   if (error) return { error: mensajeDeError(error.message) };
