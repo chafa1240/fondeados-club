@@ -310,20 +310,78 @@ export function totalRetirado(cuenta: Cuenta, retiros: Retiro[]) {
   return retiros.reduce((a, r) => a + r.monto, cuenta.retiros_previos);
 }
 
-/** Firms más comunes — solo sugerencias, el campo es texto libre. */
-export const FIRMS_SUGERIDAS = [
-  "FTMO",
-  "The5ers",
-  "FundedNext",
-  "Alpha Capital",
-  "MyForexFunds",
-  "Topstep",
+/**
+ * Firms conocidas, solo como sugerencias: el campo sigue siendo texto
+ * libre y se puede escribir cualquier otra.
+ *
+ * Van primero las de **futuros**, que son las que se usan acá; después las
+ * de forex/CFD. Dentro de cada grupo, alfabético.
+ *
+ * Armada el 2026-08-18 con los directorios de quantvps.com/blog/15-best-futures-prop-firms
+ * y track360.io/blog/prop-trading-firms-directory-2026. Ojo al actualizarla:
+ * este rubro abre y cierra firms todo el tiempo (MyForexFunds estaba en la
+ * lista vieja y ya no opera), así que conviene revisarla cada tanto.
+ */
+export const FIRMS_FUTUROS = [
+  "Alpha Futures",
   "Apex Trader Funding",
+  "BluSky Trading",
+  "Blue Guardian Futures",
+  "Bulenox",
+  "Day Traders",
+  "Earn2Trade",
+  "Elite Trader Funding",
+  "Funded Futures Network",
+  "FundedNext Futures",
+  "Leeloo Trading",
+  "Legends Trading",
+  "Lucid Trading",
+  "My Funded Futures",
+  "Phidias Propfirm",
+  "Purdia Capital",
   "Take Profit Trader",
-  "E8 Markets",
-  "Blue Guardian",
-  "Funding Pips",
+  "The Futures Desk",
+  "TickTick Trader",
+  "Topstep",
+  "TradeDay",
+  "Tradeify",
 ];
+
+export const FIRMS_FOREX = [
+  "Alpha Capital Group",
+  "AquaFunded",
+  "AscendX Capital",
+  "Atlas Funded",
+  "Audacity Capital",
+  "Blue Guardian",
+  "Blueberry Funded",
+  "Breakout Prop",
+  "City Traders Imperium",
+  "Crypto Fund Trader",
+  "E8 Markets",
+  "FTMO",
+  "FTUK",
+  "Fintokei",
+  "Finotive Funding",
+  "For Traders",
+  "FundedNext",
+  "Funded Trading Plus",
+  "FundingPips",
+  "FXIFY",
+  "Goat Funded Trader",
+  "Hola Prime",
+  "HyroTrader",
+  "Instant Funding",
+  "Lark Funding",
+  "Maven Trading",
+  "PipFarm",
+  "Quant Tekel",
+  "SabioTrade",
+  "The Trading Pit",
+  "The5ers",
+];
+
+export const FIRMS_SUGERIDAS = [...FIRMS_FUTUROS, ...FIRMS_FOREX];
 
 /* ---------- Formato ---------- */
 

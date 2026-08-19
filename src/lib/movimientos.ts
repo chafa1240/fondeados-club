@@ -319,6 +319,15 @@ export type Totales = {
   invertido: number;
   cobrado: number;
   neto: number;
+  /**
+   * Cuánto rindió lo invertido, en %. null cuando no invertiste nada:
+   * dividir por cero daría infinito, y "infinito por ciento" no es una
+   * respuesta — es un cartel de que la pregunta todavía no aplica.
+   */
+  roi: number | null;
+  /** Cuántos retiros entraron en la cuenta, y de cuánto fue cada uno. */
+  cantidadRetiros: number;
+  retiroPromedio: number | null;
 };
 
 /**
@@ -331,13 +340,27 @@ export type Totales = {
 export function totales(movs: Movimiento[]): Totales {
   let invertido = 0;
   let cobrado = 0;
+  let cantidadRetiros = 0;
 
   for (const m of movs) {
-    if (m.tipo === "gasto") invertido += m.monto;
-    else cobrado += m.monto;
+    if (m.tipo === "gasto") {
+      invertido += m.monto;
+    } else {
+      cobrado += m.monto;
+      cantidadRetiros += 1;
+    }
   }
 
-  return { invertido, cobrado, neto: cobrado - invertido };
+  const neto = cobrado - invertido;
+
+  return {
+    invertido,
+    cobrado,
+    neto,
+    roi: invertido > 0 ? (neto / invertido) * 100 : null,
+    cantidadRetiros,
+    retiroPromedio: cantidadRetiros > 0 ? cobrado / cantidadRetiros : null,
+  };
 }
 
 /** Cuánto se gastó en cada categoría, de mayor a menor. */

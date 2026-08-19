@@ -181,6 +181,16 @@ Tabla de "Movimientos": todo (gastos + payouts) en una lista, filtrable
 por tipo/cuenta, con fecha y monto.
 
 ### Explícitamente FUERA del MVP
+**Logos de las prop firms** (descartado 2026-08-19). Se evaluó ponerlos al
+lado del nombre. Traerlos del sitio de cada firm es frágil y le filtra la
+IP del usuario a 53 dominios; los favicons son de 32px y se ven como
+manchas; guardarlos nosotros es lo único que queda bien, pero son 53
+archivos a mantener en un rubro donde las firms abren y cierran seguido.
+Hoy no aportan: casi todas las cuentas son de la misma firm y el nombre ya
+está escrito al lado. Si alguna vez hace falta, la alternativa barata es
+una insignia con la inicial y un color derivado del nombre — funciona
+también con las firms escritas a mano y no depende de nadie.
+
 Métricas tipo Profit Factor, Win Rate, P&L por sesión de trading (vistas
 en "Lea") — requieren datos de **cada operación de trading** (trade por
 trade), que vendría de conectar un broker o cargar operación por

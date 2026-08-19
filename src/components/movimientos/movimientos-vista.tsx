@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { eliminarRetiro } from "@/app/(app)/cuentas/actions";
 import { eliminarGasto } from "@/app/(app)/funding-manager/actions";
-import { fechaCorta, plata, type Retiro } from "@/lib/cuentas";
+import { fechaCorta, plata, porcentaje, type Retiro } from "@/lib/cuentas";
 import {
   CATEGORIAS,
   CATEGORIA_INFO,
@@ -48,17 +48,48 @@ function Total({
   label,
   valor,
   clase,
+  ayuda,
 }: {
   label: string;
   valor: string;
   clase?: string;
+  /** Qué significa el número. Aparece detrás de un "?" al lado del título. */
+  ayuda?: string;
 }) {
+  const [verAyuda, setVerAyuda] = useState(false);
+
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs uppercase tracking-wide text-neutral-500">
+          {label}
+        </p>
+        {/* Se abre al tocar y no al pasar el mouse: en el celular no hay
+            hover, y ahí un número sin explicar no se entiende igual. */}
+        {ayuda && (
+          <button
+            onClick={() => setVerAyuda((v) => !v)}
+            aria-label={`Qué es ${label}`}
+            className={`flex h-4 w-4 items-center justify-center rounded-full border text-[10px] leading-none transition ${
+              verAyuda
+                ? "border-neutral-500 text-neutral-200"
+                : "border-neutral-700 text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            ?
+          </button>
+        )}
+      </div>
+
       <p className={`mt-1 text-xl font-semibold tracking-tight ${clase ?? ""}`}>
         {valor}
       </p>
+
+      {ayuda && verAyuda && (
+        <p className="mt-2 border-t border-neutral-800 pt-2 text-xs leading-relaxed text-neutral-400">
+          {ayuda}
+        </p>
+      )}
     </div>
   );
 }
@@ -627,6 +658,14 @@ export function MovimientosVista({
     [gastos, retiros, cuentas]
   );
 
+  /** Si una fecha cae dentro del período que mira el filtro. */
+  function enPeriodo(fecha: string, f: Filtro) {
+    if (f.mes !== "todos" && mesDe(fecha) !== f.mes) return false;
+    if (f.desde !== "" && fecha < f.desde) return false;
+    if (f.hasta !== "" && fecha > f.hasta) return false;
+    return true;
+  }
+
   /** Un movimiento pasa un filtro, o no. La usan las dos secciones. */
   function pasa(m: Movimiento, f: Filtro) {
     if (f.tipo !== "todos" && m.tipo !== f.tipo) return false;
@@ -666,6 +705,21 @@ export function MovimientosVista({
     historial.hasta,
   ]);
 
+  /**
+   * Cuánto te salió conseguir cada fondeada: todo lo invertido dividido las
+   * fondeadas que lograste, contando las evaluaciones que quemaste en el
+   * camino. Leído contra el retiro promedio, dice si el negocio cierra.
+   *
+   * Se cuentan las fondeadas que arrancaron dentro del mismo período que
+   * los gastos: si el filtro mira agosto, el costo es el de agosto.
+   */
+  const fondeadasConseguidas = cuentas.filter(
+    (c) => c.tipo === "fondeada" && enPeriodo(c.fecha_inicio, resumen)
+  ).length;
+
+  const costoPorFondeada =
+    fondeadasConseguidas > 0 ? t.invertido / fondeadasConseguidas : null;
+
   const acumulado = acumuladoEnTiempo(deResumen);
   const categorias = porCategoria(deResumen);
   const firms = useMemo(() => porFirm(cuentas), [cuentas]);
@@ -698,13 +752,47 @@ export function MovimientosVista({
         evaluaciones={evaluaciones}
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Total label="Invertido" valor={plata(t.invertido)} />
         <Total label="Cobrado" valor={plata(t.cobrado)} />
         <Total
           label="Neto"
           valor={`${t.neto < 0 ? "−" : "+"}${plata(Math.abs(t.neto))}`}
           clase={t.neto < 0 ? "text-rose-400" : "text-emerald-400"}
+        />
+        {/* El ROI es el neto sobre lo invertido: cuánto rindió cada dólar
+            que pusiste. Sin inversión cargada no hay nada que dividir. */}
+        <Total
+          label="ROI"
+          valor={
+            t.roi === null
+              ? "—"
+              : `${t.roi < 0 ? "−" : "+"}${porcentaje(Math.abs(t.roi), 1)}`
+          }
+          clase={
+            t.roi === null
+              ? "text-neutral-500"
+              : t.roi < 0
+                ? "text-rose-400"
+                : "text-emerald-400"
+          }
+        />
+
+        <Total
+          label={`Retiro promedio${
+            t.cantidadRetiros > 0 ? ` (${t.cantidadRetiros})` : ""
+          }`}
+          valor={t.retiroPromedio === null ? "—" : plata(t.retiroPromedio)}
+          clase={t.retiroPromedio === null ? "text-neutral-500" : undefined}
+        />
+
+        <Total
+          label={`Costo por fondeada${
+            fondeadasConseguidas > 0 ? ` (${fondeadasConseguidas})` : ""
+          }`}
+          valor={costoPorFondeada === null ? "—" : plata(costoPorFondeada)}
+          clase={costoPorFondeada === null ? "text-neutral-500" : undefined}
+          ayuda="Todo lo invertido dividido las fondeadas que conseguiste (incluye las evaluaciones que quemaste en el camino). Comparalo con el retiro promedio: cuando el retiro supera a este número, el negocio se sostiene solo."
         />
       </div>
 

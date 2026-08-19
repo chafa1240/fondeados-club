@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
 import {
@@ -9,7 +9,8 @@ import {
   fechaCorta,
   ESTADOS_POR_TIPO,
   ESTADO_INFO,
-  FIRMS_SUGERIDAS,
+  FIRMS_FOREX,
+  FIRMS_FUTUROS,
   MODOS_DRAWDOWN,
   MODO_DRAWDOWN_DEFAULT,
   MODO_DRAWDOWN_INFO,
@@ -58,6 +59,165 @@ function Campo({
       {children}
       {ayuda && <span className="mt-1 block text-xs text-neutral-500">{ayuda}</span>}
     </label>
+  );
+}
+
+/**
+ * Elegir la firm de un menú con submenús, como los filtros del Funding
+ * Manager. Son más de cincuenta: mostradas todas juntas es una lista
+ * imposible, y separadas en Futuros y Forex se encuentra la que buscás sin
+ * leer todo.
+ *
+ * Sigue habiendo forma de escribir una que no esté en la lista: el rubro
+ * abre firms nuevas todo el tiempo y no queremos que la app le diga a
+ * alguien que su firm no existe.
+ */
+function SelectorFirm({
+  valor,
+  onElegir,
+}: {
+  valor: string;
+  /** El grupo viene solo cuando se eligió de una lista, no al escribirla. */
+  onElegir: (v: string, grupo?: "futuros" | "forex") => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [submenu, setSubmenu] = useState<null | "futuros" | "forex">(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [escribiendo, setEscribiendo] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Cada submenú arranca con el buscador limpio: lo que escribiste para
+  // encontrar una firm de futuros no tiene por qué filtrar las de forex.
+  function abrirSubmenu(clave: null | "futuros" | "forex") {
+    setSubmenu(clave);
+    setBusqueda("");
+  }
+
+  useEffect(() => {
+    if (!abierto) return;
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setAbierto(false);
+        abrirSubmenu(null);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [abierto]);
+
+  const item =
+    "block w-full px-3 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-neutral-800";
+
+  function elegir(v: string, grupo: "futuros" | "forex") {
+    onElegir(v, grupo);
+    setEscribiendo(false);
+    setAbierto(false);
+    abrirSubmenu(null);
+  }
+
+  const grupo = (
+    clave: "futuros" | "forex",
+    label: string,
+    lista: readonly string[]
+  ) => {
+    const filtradas = lista.filter((f) =>
+      f.toLowerCase().includes(busqueda.trim().toLowerCase())
+    );
+
+    return (
+      // El submenú NO se cierra al salir con el mouse: con un buscador
+      // adentro, cerrarse mientras escribís sería insoportable. Se cierra al
+      // elegir, al abrir el otro grupo, o al hacer clic afuera.
+      <div className="relative" onMouseEnter={() => abrirSubmenu(clave)}>
+        <button
+          type="button"
+          className={`${item} flex items-center justify-between`}
+          onClick={() => abrirSubmenu(clave)}
+        >
+          {label}
+          <span className="text-neutral-600">›</span>
+        </button>
+
+        {submenu === clave && (
+          <div className="absolute left-full top-0 z-40 ml-1 w-60 rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+            <div className="px-2 pb-1">
+              <input
+                autoFocus
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                className="w-full rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm outline-none transition focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="max-h-64 overflow-y-auto">
+              {filtradas.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-neutral-600">
+                  Ninguna coincide. Podés cargarla con “Otra”.
+                </p>
+              ) : (
+                filtradas.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={item}
+                    onClick={() => elegir(f, clave)}
+                  >
+                    {f}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      {escribiendo ? (
+        <input
+          autoFocus
+          value={valor}
+          onChange={(e) => onElegir(e.target.value)}
+          onBlur={() => valor.trim() !== "" && setEscribiendo(false)}
+          placeholder="Nombre de la firm"
+          className={INPUT}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAbierto((v) => !v)}
+          className={`${INPUT} flex items-center justify-between text-left`}
+        >
+          <span className={valor ? "" : "text-neutral-600"}>
+            {valor || "Elegí la firm"}
+          </span>
+          <span className="text-neutral-600">▾</span>
+        </button>
+      )}
+
+      {abierto && !escribiendo && (
+        <div className="absolute left-0 z-30 mt-1 w-56 rounded-lg border border-neutral-800 bg-neutral-900 py-1 shadow-xl">
+          {grupo("futuros", "Futuros", FIRMS_FUTUROS)}
+          {grupo("forex", "Forex / CFD", FIRMS_FOREX)}
+
+          <div className="my-1 border-t border-neutral-800" />
+          <button
+            type="button"
+            className={item}
+            onClick={() => {
+              setEscribiendo(true);
+              setAbierto(false);
+              abrirSubmenu(null);
+            }}
+          >
+            Otra (escribirla)…
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -173,6 +333,22 @@ export function ModalCuenta({
       setNombre(nombreSugerido[nuevo]);
     }
     setTipo(nuevo);
+  }
+  const [firm, setFirm] = useState(cuenta?.firm ?? "");
+
+  /**
+   * Elegir la firm propone el modo de drawdown que usa ese mercado: las de
+   * futuros trailean, las de forex casi siempre tienen piso fijo. Es una
+   * sugerencia, no una regla — el desplegable de abajo se puede cambiar, y
+   * hay firms que no siguen la costumbre de su mercado.
+   *
+   * Solo se aplica al elegir de la lista. Si escribís la firm a mano no se
+   * toca nada: no sabemos de qué mercado es.
+   */
+  function elegirFirm(v: string, grupo?: "futuros" | "forex") {
+    setFirm(v);
+    if (grupo === "futuros") setModo("trailing");
+    if (grupo === "forex") setModo("estatico");
   }
   const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
   // Controlada porque es el mínimo posible para la fecha de cierre.
@@ -410,19 +586,8 @@ export function ModalCuenta({
             </Campo>
 
             <Campo label="Firm">
-              <input
-                name="firm"
-                required
-                list="firms"
-                placeholder="FTMO, Apex…"
-                defaultValue={cuenta?.firm ?? ""}
-                className={INPUT}
-              />
-              <datalist id="firms">
-                {FIRMS_SUGERIDAS.map((f) => (
-                  <option key={f} value={f} />
-                ))}
-              </datalist>
+              <input type="hidden" name="firm" value={firm} />
+              <SelectorFirm valor={firm} onElegir={elegirFirm} />
             </Campo>
 
             <Campo label="Tamaño de cuenta (USD)">
