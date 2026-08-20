@@ -107,9 +107,20 @@ filtros, y el balance de cada cuenta **ya no se guarda: se calcula** con
 los resultados diarios y los retiros. Detalle en `ROADMAP.md` y en la
 sección **Resultados diarios** de este archivo.
 
-Próximo paso: Paso 6 — Funding Manager con gráficos (ahí entran el gráfico
-de balance vs. piso, las rachas y el ratio de días, que ya tienen las
-funciones escritas en `src/lib/resultados.ts` pero no la pantalla).
+**Paso 6 (Funding Manager con gráficos) hecho el 2026-08-18.** Cards de
+resumen con ROI, retiro promedio y costo por fondeada; cuatro gráficos
+(invertido vs. cobrado, neto acumulado, gastos por categoría, cuentas por
+firm); filtros separados para el resumen y el historial; y el gráfico de
+**balance vs. piso** por cuenta, que se abre desde la tarjeta. En el mismo
+tramo entraron la lista de firms partida en Futuros / Forex con buscador y
+la sugerencia de modo de drawdown según el mercado. Detalle en
+`ROADMAP.md` (Pasos 6 y 6b).
+
+**Próximo paso: Paso 7 — Home.** Todavía sin definir en detalle: hay que
+decidir qué alertas entran antes de escribir código. Lo único que quedó
+escrito sin pantalla del tramo anterior es `resumenDias()` (ratio de días
+ganadores/perdedores) en `src/lib/resultados.ts`, candidato a vivir ahí
+junto con `rachaActual()` y `retiroMaximoSeguro()`.
 
 **Nota técnica**: `npm run build` no se puede correr desde el entorno de
 Claude (el `node_modules` está instalado para Windows y el sandbox no
@@ -165,20 +176,52 @@ payout, notas. Decisión importante: **no** se arma un catálogo automático
 de reglas por firm (como tienen PipBack/Lea) porque implica mucho
 mantenimiento — para el MVP esos campos los completa el usuario a mano.
 
+**Firms (2026-08-18)**: `FIRMS_FUTUROS` y `FIRMS_FOREX` en
+`src/lib/cuentas.ts`, ~50 en total, elegibles desde un menú con submenús y
+buscador. El campo **sigue siendo texto libre**: el rubro abre y cierra
+firms todo el tiempo (MyForexFunds estaba en la lista vieja y ya no
+opera), así que conviene revisar la lista cada tanto y la app nunca le
+dice a alguien que su firm no existe. Elegir una de la lista **propone**
+el modo de drawdown del mercado (futuros → `trailing`, forex → `estatico`);
+escribirla a mano no toca nada, porque ahí no sabemos de qué mercado es.
+
 ### FUNDING MANAGER
-Cards de resumen arriba: Total Invertido, Total Cobrado (payouts), Net
-P&L, ROI %, Cuentas activas.
+Implementado en el Paso 6 (2026-08-18). La pantalla tiene dos secciones,
+**Resumen** e **Historial**, cada una con su propio filtro.
+
+Cards de resumen: Invertido, Cobrado, Neto, **ROI %**, **Retiro promedio**
+y **Costo por fondeada** (todo lo invertido dividido las fondeadas
+conseguidas, contando las evaluaciones quemadas en el camino). Estos dos
+últimos se leen de a pares: cuando el retiro promedio supera al costo por
+fondeada, el negocio se sostiene solo.
 
 Gráficos (todos calculables solo con gastos + payouts, sin necesitar
 datos de trades):
-- Invertido vs Payouts en el tiempo
-- P&L Neto acumulado
-- Gastos por categoría (fee de challenge, reset, activación,
-  software/suscripciones)
-- Resultados por Firm (passed/failed)
+- Invertido vs. cobrado, acumulado en el tiempo
+- Neto acumulado
+- Gastos por categoría — un solo tono, no un color por categoría: acá se
+  comparan tamaños, y pintar cada una distinta sugiere que el color
+  significa algo
+- Cuentas por firm (pasadas / quemadas / en juego). **No sigue los
+  filtros**: mira todas las cuentas, y así lo dice en pantalla
 
-Tabla de "Movimientos": todo (gastos + payouts) en una lista, filtrable
-por tipo/cuenta, con fecha y monto.
+Tabla de "Movimientos": todo (gastos + retiros) en una lista, con filtros
+de cuenta, período y tipo, paginada por tandas. Los movimientos
+automáticos se marcan "desde la cuenta" y al editarlos se abre el campo de
+la cuenta que los generó, no una fila de gasto.
+
+**Dos filtros, no uno** (decisión 2026-08-18): el resumen responde "cómo
+vengo" y el historial "qué cargué". Con un filtro compartido, mirar una
+cosa rompía la otra.
+
+**Qué se puede cargar a mano**: solo las categorías generales
+(software/suscripción y otro). Evaluación, reset y fee de activación
+existen igual, pero **solo las usan los movimientos automáticos**, porque
+esos números ya son campos de la cuenta — ofrecerlas también en el
+formulario permitía cargar dos veces lo mismo y el ROI quedaba inflado sin
+que nadie avisara. Un reset se carga como una evaluación nueva más barata,
+así queda además la cuenta para seguirla. Ver `CATEGORIAS_MANUALES` en
+`src/lib/movimientos.ts`.
 
 ### Explícitamente FUERA del MVP
 **Logos de las prop firms** (descartado 2026-08-19). Se evaluó ponerlos al
@@ -340,10 +383,11 @@ columna nueva tiene que degradar, no romper.
 Rediseño del drawdown. Implementado en `supabase/008_drawdown_trailing.sql`
 (la 006 y la 007 ya estaban usadas), `src/lib/cuentas.ts`,
 `modal-cuenta.tsx`, `tarjeta-cuenta.tsx` y `cuentas/actions.ts`.
-**Falta correr la migración 008 en el SQL Editor de Supabase.**
+Migración 008 **ya corrida** en Supabase (2026-08-17), junto con la 009
+que le corrige el drawdown asumido de más.
 
-Lo único que queda pendiente de esta tanda es el **máximo del día**, que
-vive en la fila diaria y por lo tanto entra recién con el Paso 5b.
+El **máximo del día** quedó implementado con el Paso 5b (vive en la fila
+diaria). Esta tanda está cerrada.
 
 ### El problema que resuelve
 Hoy `pisoDrawdown()` calcula `tamano_cuenta − drawdown_maximo_monto`: un

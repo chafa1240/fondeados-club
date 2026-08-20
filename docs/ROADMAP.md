@@ -170,7 +170,7 @@ Se probó mostrar en la tarjeta **cuánto se puede retirar sin quedar en
 crítico** y se sacó: ensuciaba. `retiroMaximoSeguro()` queda en
 `cuentas.ts` para las alertas del Paso 7.
 
-### Paso 5 — Gastos y payouts
+### Paso 5 — Gastos y payouts ✅ HECHO (2026-08-17)
 - Alta de gasto (con o sin cuenta asociada) y alta de payout.
 - Listado/tabla de movimientos, filtrable por tipo y por cuenta.
 - Editar y borrar movimientos.
@@ -270,19 +270,82 @@ alertas de "estás cerca del drawdown" con datos reales, y el gráfico
 **Sigue fuera del MVP** el journal trade por trade (instrumento, entrada,
 salida): esto es un resumen del día, no un registro de cada operación.
 
-### Paso 6 — Funding Manager
-- Cards de resumen: Total Invertido, Total Cobrado, P&L Neto, ROI %,
-  Cuentas activas.
-- Gráficos: Invertido vs Payouts en el tiempo, P&L neto acumulado,
-  gastos por categoría, resultados por firm.
-- Tabla de movimientos completa.
+### Paso 6 — Funding Manager ✅ HECHO (2026-08-18)
+
+- ✅ **Cards de resumen**: Invertido, Cobrado, Neto, **ROI %**, **Retiro
+  promedio** (con la cantidad de retiros al lado) y **Costo por fondeada**.
+  Este último es todo lo invertido dividido las fondeadas conseguidas
+  (incluidas las evaluaciones quemadas en el camino): leído contra el
+  retiro promedio dice si el negocio se sostiene solo.
+- ✅ **Gráficos** (`src/components/movimientos/graficos.tsx`): Invertido
+  vs. cobrado (acumulado), Neto acumulado, Gastos por categoría y Cuentas
+  por firm (pasadas / quemadas / en juego). Acumulados y no por día a
+  propósito: la pregunta es "cuánto llevo puesto y cuánto recuperé", no
+  "cuánto gasté el martes".
+- ✅ **Dos filtros separados**, uno para el Resumen y otro para el
+  Historial: son dos preguntas distintas ("cómo vengo" vs. "qué cargué") y
+  compartir un solo filtro obligaba a romper una vista para mirar la otra.
+  Mes y rango de fechas son excluyentes entre sí; tipo y categoría viajan
+  en un solo desplegable con submenú (`gasto:reset`), porque son la misma
+  pregunta en dos niveles.
+- ✅ **Tabla de movimientos** completa, con paginado por tandas, edición y
+  borrado. Los movimientos automáticos (precio, fee de activación, retiros
+  previos) se editan abriendo el campo de la cuenta que los generó.
+- ✅ **Alta de gastos solo generales**: Evaluación, Reset y Fee de
+  activación salieron del formulario manual, porque ya son campos de la
+  cuenta y cargarlas dos veces inflaba el ROI sin avisar
+  (`CATEGORIAS_MANUALES` en `src/lib/movimientos.ts`). Un reset se carga
+  como una evaluación nueva más barata.
+- ✅ **Gráfico de balance vs. piso del drawdown por cuenta**
+  (`grafico-curva.tsx` + `modal-curva.tsx`), que se abre desde la tarjeta,
+  con la **racha actual** (`rachaActual()`).
+
+Archivos: `src/lib/movimientos.ts` (totales, ROI, series, por categoría,
+por firm), `src/components/movimientos/graficos.tsx`,
+`movimientos-vista.tsx`, `src/components/cuentas/grafico-curva.tsx` y
+`modal-curva.tsx`.
 
 **Resultado visible:** ves de un vistazo si estás ganando o perdiendo plata.
 
-### Paso 7 — Home
+**Quedó pendiente** de lo prometido en el Paso 5b: el **ratio de días
+ganadores/perdedores**. `resumenDias()` ya está escrita en
+`src/lib/resultados.ts` pero todavía no tiene pantalla — candidata natural
+para el Home (Paso 7).
+
+#### Paso 6b — Firms y modo de drawdown por mercado (2026-08-18)
+Salió del mismo trabajo, aunque toca la sección Cuentas.
+
+- Lista de firms ampliada y **partida en dos grupos**: `FIRMS_FUTUROS` y
+  `FIRMS_FOREX` en `src/lib/cuentas.ts` (~50 en total, armada el
+  2026-08-18 con directorios públicos). Sigue siendo texto libre: el rubro
+  abre y cierra firms todo el tiempo y la app no le puede decir a alguien
+  que la suya no existe. Conviene revisarla cada tanto (MyForexFunds
+  estaba en la lista vieja y ya no opera).
+- El selector de firm es un **menú con submenús y buscador**, mismo gesto
+  que el filtro de tipos del Funding Manager. El buscador filtra dentro
+  del grupo abierto.
+- Elegir una firm **propone el modo de drawdown de su mercado**: futuros →
+  `trailing`, forex/CFD → `estatico`. Es sugerencia, no regla: el
+  desplegable se cambia igual, y escribir la firm a mano no toca nada
+  (no sabemos de qué mercado es).
+- **Logos de las prop firms: descartados** (2026-08-19). Razones en
+  `CLAUDE.md`, sección *Explícitamente FUERA del MVP*.
+
+### Paso 7 — Home ← **PRÓXIMO PASO**
 Recién ahora tiene sentido definirla en detalle, porque ya sabemos qué
 datos existen. Idea: resumen de lo más importante + alertas (drawdown
 cerca del límite, cuenta lista para payout) + accesos rápidos.
+
+Material que ya está escrito y sin pantalla, candidato a vivir acá:
+- `resumenDias()` — días ganadores vs. perdedores (`src/lib/resultados.ts`).
+- `rachaActual()` — hoy solo se ve dentro del modal de curva.
+- `retiroMaximoSeguro()` — cuánto se puede retirar sin quedar en crítico
+  (`src/lib/cuentas.ts`). Se probó en la tarjeta y ensuciaba; como alerta
+  puntual tiene más sentido.
+
+Hay que definir antes de codear: qué alertas entran, si el Home es una
+lista de avisos o un tablero, y qué pasa cuando no hay ninguna cuenta
+cargada.
 
 **Resultado visible:** la pantalla que ves al entrar.
 
