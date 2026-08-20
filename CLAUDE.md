@@ -17,7 +17,16 @@ Freemium:
   avanzada, posible multi-usuario.
 - El pago mensual incluye acceso a una **comunidad privada** (tipo Discord).
 
-## Competencia (research hecho el 2026-08-03)
+## Competencia
+
+**Research nuevo del 2026-08-20 en `docs/COMPETENCIA.md`**: PropTracker
+(`proptracker.io`) y Trading Control (`tradingcontrol.app`), los dos
+recorridos por dentro con cuenta propia. Ahí están los huecos concretos
+(calendario mensual, retiros con estado pedido/cobrado, ROI por firm), lo
+que implica para el Home y los precios del rubro. Lo de abajo queda como
+antecedente.
+
+### Research viejo (2026-08-03)
 - **pipback.com** — el más parecido a la idea. Trackea el journey completo
   de evaluaciones (compra → funded → payouts), ROI, comparador de firms,
   calculadora de evaluación. Freemium: herramientas de comparación gratis,
