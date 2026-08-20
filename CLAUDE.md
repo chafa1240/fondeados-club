@@ -19,12 +19,13 @@ Freemium:
 
 ## Competencia
 
-**Research nuevo del 2026-08-20 en `docs/COMPETENCIA.md`**: PropTracker
+**Research nuevo del 2026-08-20 en `docs/COMPETIDORES.md`**: PropTracker
 (`proptracker.io`) y Trading Control (`tradingcontrol.app`), los dos
-recorridos por dentro con cuenta propia. Ahí están los huecos concretos
-(calendario mensual, retiros con estado pedido/cobrado, ROI por firm), lo
-que implica para el Home y los precios del rubro. Lo de abajo queda como
-antecedente.
+recorridos por dentro con cuenta propia. Ahí están la tabla comparativa,
+**nuestras ventajas y desventajas** contra cada uno, los huecos concretos
+(calendario mensual, retiros con estado pedido/cobrado, ROI por firm,
+daily loss limit) y lo que implica para el Home y el precio. Lo de abajo
+queda como antecedente.
 
 ### Research viejo (2026-08-03)
 - **pipback.com** — el más parecido a la idea. Trackea el journey completo
