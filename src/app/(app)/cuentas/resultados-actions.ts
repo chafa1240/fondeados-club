@@ -27,10 +27,14 @@ function diaAnterior(fecha: string) {
 }
 
 /**
- * Guarda el resultado de un día.
+ * Guarda una entrada del día: la agrega, o corrige una que ya existía si
+ * viene con `id`.
  *
- * Un día tiene un solo resultado por cuenta, así que esto es un upsert:
- * volver a cargar el mismo día lo corrige en vez de duplicarlo.
+ * Desde la migración 012 **un día puede tener varias entradas** (dos
+ * trades en la misma jornada son dos filas) y el neto del día es la suma.
+ * Antes esto era un upsert por (cuenta, fecha), así que la segunda carga
+ * pisaba a la primera — que es el caso normal de cualquiera que opere dos
+ * veces en el mismo día.
  *
  * Además corre la semilla hacia atrás si hace falta. Sin eso, cargar un
  * día que cae en la fecha de la semilla o antes no movía el balance (queda
@@ -42,21 +46,22 @@ export async function guardarResultado(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  const id = texto(fd, "id");
   const cuenta_id = texto(fd, "cuenta_id");
   const fecha = texto(fd, "fecha");
   const monto = numero(fd, "monto");
 
   if (!cuenta_id) return { error: "Falta la cuenta." };
   if (!fecha) return { error: "Elegí el día." };
-  if (monto === null) return { error: "Escribí el resultado del día." };
+  if (monto === null) return { error: "Escribí el resultado." };
 
-  // El máximo del día se carga como delta ("llegué a estar +800 arriba"),
-  // así que nunca puede ser menor al neto del día: si cerraste +200 no
-  // pudiste haber tocado como máximo +100. Se toma el mayor de los dos en
-  // vez de rechazar la carga.
+  // El máximo del día se carga como delta ("llegué a estar +800 arriba") y
+  // lo único que no puede ser es negativo. No se lo compara contra el
+  // monto de esta entrada: el máximo es de la jornada entera, y el cálculo
+  // ya se queda con el mayor entre el máximo cargado y el cierre del día
+  // (ver `estadoDeCuenta()`), así que un número corto no rompe nada.
   const picoCargado = numero(fd, "pico_dia");
-  const pico_dia =
-    picoCargado === null ? null : Math.max(picoCargado, monto, 0);
+  const pico_dia = picoCargado === null ? null : Math.max(picoCargado, 0);
 
   const datos = {
     cuenta_id,
@@ -69,17 +74,59 @@ export async function guardarResultado(
 
   const supabase = createClient();
 
-  const { error } = await supabase
-    .from("resultados_diarios")
-    .upsert(datos, { onConflict: "cuenta_id,fecha" });
+  const { data: guardado, error } = id
+    ? await supabase
+        .from("resultados_diarios")
+        .update(datos)
+        .eq("id", id)
+        .select("id")
+        .single()
+    : await supabase
+        .from("resultados_diarios")
+        .insert(datos)
+        .select("id")
+        .single();
 
   if (error) return { error: mensajeDeError(error.message) };
 
+  await dejarUnSoloMaximo(cuenta_id, fecha, guardado?.id ?? null, pico_dia);
   await correrSemilla(cuenta_id, fecha);
 
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
-  return { ok: "Resultado guardado." };
+  return { ok: id ? "Entrada corregida." : "Entrada agregada." };
+}
+
+/**
+ * El máximo del día lo lleva **una sola entrada**; las demás quedan en
+ * NULL.
+ *
+ * `pico_dia` se mide desde la apertura de la jornada, así que es un dato
+ * del día y no de cada operación. Si quedara repetido en varias filas, al
+ * corregirlo hacia abajo la app seguiría viendo el número viejo — el
+ * cálculo se queda con el mayor — y el piso del drawdown mostraría más
+ * colchón del real. Ese es el error peligroso: el que te deja creer que
+ * estás bien.
+ *
+ * Si no se cargó ningún máximo no se toca nada: dejar el campo vacío en
+ * una entrada no tiene por qué borrar el que puso otra.
+ */
+async function dejarUnSoloMaximo(
+  cuenta_id: string,
+  fecha: string,
+  id: string | null,
+  pico_dia: number | null,
+) {
+  if (pico_dia === null || !id) return;
+
+  const supabase = createClient();
+
+  await supabase
+    .from("resultados_diarios")
+    .update({ pico_dia: null })
+    .eq("cuenta_id", cuenta_id)
+    .eq("fecha", fecha)
+    .neq("id", id);
 }
 
 /**
@@ -117,6 +164,14 @@ export async function eliminarResultado(id: string) {
 }
 
 function mensajeDeError(mensaje: string) {
+  // El índice único de la 011 es justo lo que la 012 viene a sacar: si
+  // salta, es que la migración todavía no se corrió.
+  if (
+    mensaje.includes("duplicate key") ||
+    mensaje.includes("idx_resultados_cuenta_fecha")
+  ) {
+    return "Para cargar más de un resultado en el mismo día falta correr supabase/012_varias_entradas_por_dia.sql en el SQL Editor de Supabase.";
+  }
   if (mensaje.includes("row-level security")) {
     return "No tenés permiso para guardar esto. Probá cerrar sesión y volver a entrar.";
   }

@@ -10,6 +10,7 @@ import {
   type Cuenta,
 } from "@/lib/cuentas";
 import {
+  agruparPorDia,
   rachaActual,
   resumenDias,
   type Punto,
@@ -59,7 +60,9 @@ export function ModalCurva({
   const dias = resumenDias(resultados);
   const piso = pisoDrawdown(cuenta);
 
-  const filas = [...resultados].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+  // La tabla acompaña al gráfico, y el gráfico es por día: un día con dos
+  // trades es una línea con el neto, no dos.
+  const filas = agruparPorDia(resultados).reverse();
 
   return (
     <div
@@ -137,12 +140,12 @@ export function ModalCurva({
               )}
               {filas.map((r) => (
                 <li
-                  key={r.id}
+                  key={r.fecha}
                   className="flex items-baseline justify-between gap-3 text-xs"
                 >
                   <span className="text-neutral-500">
                     {fechaCorta(r.fecha)}
-                    {r.notas ? ` · ${r.notas}` : ""}
+                    {r.entradas > 1 ? ` · ${r.entradas} entradas` : ""}
                   </span>
                   <span
                     className={

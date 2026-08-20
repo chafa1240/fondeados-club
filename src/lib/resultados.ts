@@ -13,22 +13,94 @@
 
 import type { Retiro } from "./cuentas";
 
-/** Una fila de `resultados_diarios`. */
+/**
+ * Una fila de `resultados_diarios`: **una entrada, no un día**.
+ *
+ * Desde la migración 012 un día puede tener varias entradas — dos trades
+ * en la misma jornada son dos filas. Todo lo que calcula balance, pico,
+ * rachas o días ganadores trabaja sobre el **día**, no sobre la fila, y
+ * para eso está `agruparPorDia()`. Contar filas como si fueran días infla
+ * el total de días cargados y rompe las rachas.
+ */
 export type Resultado = {
   id: string;
   cuenta_id: string;
   fecha: string;
-  /** Neto del día en USD. Negativo si perdiste. */
+  /** Lo que dejó esta entrada, en USD. Negativo si perdiste. */
   monto: number;
   /** El mismo número en % del tamaño de cuenta. */
   pct: number | null;
   /**
    * Solo cuentas trailing: cuánto llegaste a tener arriba dentro del día,
    * medido desde el balance con el que abriste. null = se usa el cierre.
+   *
+   * Es un dato **del día**, no de la entrada: se mide desde la apertura de
+   * la jornada. Cuando el día tiene varias entradas lo lleva una sola de
+   * ellas y el resto va en null (lo garantiza `guardarResultado()`); acá,
+   * por las dudas, se toma el mayor.
    */
   pico_dia: number | null;
   notas: string | null;
 };
+
+/** Un día entero: la suma de sus entradas. */
+export type DiaResultado = {
+  fecha: string;
+  /** El neto del día: la suma de todas sus entradas. */
+  monto: number;
+  /** El máximo del día, si alguna entrada lo trae. */
+  pico_dia: number | null;
+  /** Cuántas entradas lo componen. 1 en la mayoría de los días. */
+  entradas: number;
+};
+
+/**
+ * Junta las entradas de cada día en un solo día, ordenado de más viejo a
+ * más nuevo.
+ *
+ * El neto del día es la suma; el máximo del día es el mayor de los
+ * cargados (normalmente hay uno solo). Esta es la única puerta entre "lo
+ * que el usuario tipeó" y "lo que la app calcula".
+ */
+export function agruparPorDia(resultados: Resultado[]): DiaResultado[] {
+  const mapa = new Map<string, DiaResultado>();
+
+  for (const r of resultados) {
+    const dia = mapa.get(r.fecha);
+
+    if (!dia) {
+      mapa.set(r.fecha, {
+        fecha: r.fecha,
+        monto: r.monto,
+        pico_dia: r.pico_dia,
+        entradas: 1,
+      });
+      continue;
+    }
+
+    dia.monto += r.monto;
+    dia.entradas += 1;
+    if (r.pico_dia !== null) {
+      dia.pico_dia = dia.pico_dia === null ? r.pico_dia : Math.max(dia.pico_dia, r.pico_dia);
+    }
+  }
+
+  return [...mapa.values()].sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0));
+}
+
+/** Las entradas de un día puntual, de la más vieja a la más nueva. */
+export function entradasDelDia(resultados: Resultado[], fecha: string) {
+  return resultados.filter((r) => r.fecha === fecha);
+}
+
+/** El máximo cargado para un día, o null si no tiene. */
+export function maximoDelDia(resultados: Resultado[], fecha: string) {
+  const picos = entradasDelDia(resultados, fecha)
+    .map((r) => r.pico_dia)
+    .filter((p): p is number => p !== null);
+
+  return picos.length === 0 ? null : Math.max(...picos);
+}
 
 /**
  * Lo que hace falta de la cuenta para reconstruir su curva.
@@ -97,11 +169,15 @@ export function estadoDeCuenta(
     esResultado: boolean;
   };
 
+  // Se agrupa por día antes de nada: un día con dos trades es **un** punto
+  // de la curva con el neto de los dos, no dos puntos. Si entraran sueltos,
+  // la apertura del segundo sería el balance de media jornada y el máximo
+  // del día (que se mide desde la apertura real) quedaría mal ubicado.
   const eventos: Evento[] = [
-    ...resultados.map((r) => ({
-      fecha: r.fecha,
-      delta: r.monto,
-      picoDia: r.pico_dia,
+    ...agruparPorDia(resultados).map((d) => ({
+      fecha: d.fecha,
+      delta: d.monto,
+      picoDia: d.pico_dia,
       esResultado: true,
     })),
     // Un retiro saca plata de la cuenta igual que un día perdedor.
@@ -207,23 +283,32 @@ export function montoDeResultado(tamano: number, pct: number) {
 
 /* ---------- Estadísticas simples ---------- */
 
+/**
+ * La racha de días en verde o en rojo que viene corriendo.
+ *
+ * Cuenta **días**, no entradas: una jornada con dos trades es un día. Un
+ * día verde es el que cierra en positivo sumando todo lo que se cargó,
+ * aunque adentro haya habido una operación perdedora.
+ */
 export function rachaActual(resultados: Resultado[]) {
-  const orden = [...resultados].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+  const orden = agruparPorDia(resultados).reverse();
   if (orden.length === 0) return { dias: 0, ganadora: true };
 
   const ganadora = orden[0].monto >= 0;
   let dias = 0;
 
-  for (const r of orden) {
-    if (r.monto >= 0 !== ganadora) break;
+  for (const d of orden) {
+    if (d.monto >= 0 !== ganadora) break;
     dias += 1;
   }
 
   return { dias, ganadora };
 }
 
+/** Días ganadores, perdedores y totales. También cuenta días, no entradas. */
 export function resumenDias(resultados: Resultado[]) {
-  const ganadores = resultados.filter((r) => r.monto > 0).length;
-  const perdedores = resultados.filter((r) => r.monto < 0).length;
-  return { ganadores, perdedores, total: resultados.length };
+  const dias = agruparPorDia(resultados);
+  const ganadores = dias.filter((d) => d.monto > 0).length;
+  const perdedores = dias.filter((d) => d.monto < 0).length;
+  return { ganadores, perdedores, total: dias.length };
 }

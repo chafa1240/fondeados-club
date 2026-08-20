@@ -259,6 +259,28 @@ tiene dónde apoyarse.
   vista lista) o desde el ⋯. En las fondeadas hay además un botón
   **`Retiro`**; en las evaluaciones no, porque ahí no se puede retirar.
 
+#### Paso 5c — Varias entradas por día ✅ HECHO (2026-08-20)
+Salió de usarlo: dos trades el mismo día en la misma evaluación, y el
+segundo pisaba al primero ("este día ya tenía un resultado cargado: al
+guardar se corrige"). El modelo de "una fila por día" era correcto para
+calcular pero equivocado para cargar.
+
+- Migración `012_varias_entradas_por_dia.sql`: se saca el índice único de
+  (`cuenta_id`, `fecha`).
+- `guardarResultado()` deja de ser un upsert: **agrega** una entrada, o
+  **corrige** una existente si viene con `id`.
+- `agruparPorDia()` en `src/lib/resultados.ts` es la única puerta entre las
+  filas y el cálculo. `estadoDeCuenta()`, `rachaActual()` y `resumenDias()`
+  pasan por ahí: **el día sigue siendo la unidad de cálculo**.
+- El **máximo del día** lo lleva una sola entrada de la jornada
+  (`dejarUnSoloMaximo()`), porque se mide desde la apertura del día y no
+  desde cada operación.
+- El modal muestra las entradas del día con su neto arriba del formulario,
+  y cada una se puede corregir o borrar.
+
+**Resultado visible:** cargás los dos trades del día y se suman, en vez de
+pisarse.
+
 **Queda para el Paso 6** (las funciones ya están en `src/lib/resultados.ts`,
 falta la pantalla): gráfico de balance vs. piso, rachas y ratio de días
 ganadores/perdedores.

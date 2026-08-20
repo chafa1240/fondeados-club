@@ -330,12 +330,27 @@ otro), `monto`, `fecha`, `descripcion`.
 Una fila por cobro. Campos: `cuenta_id` (obligatorio, un payout siempre
 es de una cuenta), `monto`, `fecha`, `notas`.
 
-### resultados_diarios (Paso 5b, migración 011)
-Una fila por **día y cuenta**: `fecha`, `monto` (neto del día, puede ser
-negativo), `pct` (el mismo número sobre el tamaño de cuenta), `pico_dia` y
-`notas`. Índice único por (`cuenta_id`, `fecha`): un día tiene un solo
-resultado, así que el alta es un **upsert** — volver a cargar el mismo día
-lo corrige en vez de duplicarlo.
+### resultados_diarios (Paso 5b, migración 011 + 012)
+Una fila por **entrada**: `fecha`, `monto`, `pct` (el mismo número sobre el
+tamaño de cuenta), `pico_dia` y `notas`.
+
+⚠️ **Una fila NO es un día.** La 011 puso un índice único en
+(`cuenta_id`, `fecha`) con el alta como upsert, y eso rompía el caso más
+común: dos trades en la misma jornada, donde el segundo pisaba al primero.
+La **012 (2026-08-20)** saca el índice único y deja **varias entradas por
+día**.
+
+**El día sigue siendo la unidad de cálculo**: balance, pico, rachas y días
+ganadores salen de la suma de las entradas de cada día. Todo eso pasa por
+`agruparPorDia()` en `src/lib/resultados.ts` — sumar filas sueltas como si
+fueran días infla el conteo y rompe las rachas.
+
+`pico_dia` es un dato **del día**, no de la entrada (se mide desde la
+apertura de la jornada). Lo lleva **una sola** entrada del día y el resto
+va en NULL: de eso se encarga `dejarUnSoloMaximo()` en
+`resultados-actions.ts`. Si quedara repetido, al corregirlo hacia abajo el
+cálculo seguiría tomando el mayor y el piso del drawdown mostraría más
+colchón del real.
 
 ### RLS
 Las 4 tablas tienen RLS activado con policies `auth.uid() = user_id` para
@@ -377,7 +392,8 @@ algo no cuadra.
 
 ### Máximo del día
 `pico_dia` se carga como **delta** ("llegué a estar +800 arriba") y se mide
-desde el balance con el que abrió el día. Aparece solo en cuentas
+desde el balance con el que abrió el día — **no** desde cada operación, así
+que es uno solo por jornada aunque el día tenga varias entradas. Aparece solo en cuentas
 `trailing` no congeladas. Mueve **solo el piso**, nunca el balance. Si el
 máximo cargado es menor al neto del día se toma el neto (no se puede haber
 tocado +100 como máximo si cerraste +200).

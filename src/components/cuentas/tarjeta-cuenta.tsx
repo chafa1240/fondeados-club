@@ -33,7 +33,7 @@ import {
   type Cuenta,
   type Retiro,
 } from "@/lib/cuentas";
-import type { Resultado } from "@/lib/resultados";
+import { agruparPorDia, type Resultado } from "@/lib/resultados";
 
 /* ---------- Anillo de progreso ---------- */
 
@@ -605,11 +605,14 @@ export function TarjetaCuenta({
   const retirado = totalRetirado(cuenta, retiros);
   const piso = pisoDrawdown(cuenta);
 
-  // El día más reciente que se cargó. Se muestra siempre con su fecha y no
-  // con un "Hoy": la tarjeta se renderiza primero en el servidor (UTC) y
-  // después en el navegador, y comparar contra "hoy" da distinto en las dos
-  // puntas después de las 21hs.
-  const ultimo = [...resultados].sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
+  // El día más reciente que se cargó, con el neto de **todas** sus
+  // entradas: si ese día operaste dos veces, acá va la suma y no el último
+  // trade suelto.
+  //
+  // Se muestra siempre con su fecha y no con un "Hoy": la tarjeta se
+  // renderiza primero en el servidor (UTC) y después en el navegador, y
+  // comparar contra "hoy" da distinto en las dos puntas después de las 21hs.
+  const ultimo = agruparPorDia(resultados).at(-1);
   const c = colchon(cuenta);
   const s = salud(cuenta);
 
