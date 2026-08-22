@@ -51,14 +51,23 @@ import {
  */
 
 /**
- * Qué cuentas entran en los números de trading.
+ * Qué cuentas entran en los números de trading: **o fondeadas o
+ * evaluaciones, nunca las dos juntas**.
  *
- * **Entran todas, incluidas las quemadas y las archivadas**: una cuenta se
- * quema porque perdiste, y esas pérdidas son parte de cómo venís
- * operando. Esconderlas sería quedarse solo con la parte linda del
- * historial. Lo único que se filtra es el tipo de cuenta.
+ * No hay opción "Todas" a propósito. Un dólar de fondeada y uno de
+ * evaluación no son la misma unidad: en una fondeada el balance decide
+ * cuánto podés retirar, así que un mal día te saca plata real del bolsillo
+ * futuro; en una evaluación son dólares simulados —lo que perdés de verdad
+ * al quemarla es su precio, y ese número ya lo cuenta el flujo de caja—.
+ * Sumarlos daba un total que no significa nada, y encima el día que una
+ * evaluación se quema descarga todo el drawdown de una y se comía
+ * visualmente el resto del mes.
+ *
+ * Dentro de cada tipo **entran todas las cuentas**, incluidas las quemadas
+ * y las archivadas: una cuenta se quema porque perdiste, y esa pérdida es
+ * parte de cómo venís operando.
  */
-type FiltroTipo = "todas" | Tipo;
+type FiltroTipo = Tipo;
 
 const FILTROS_TIPO: { valor: FiltroTipo; label: string; ayuda: string }[] = [
   { valor: "fondeada", label: "Fondeadas", ayuda: "Lo que se convierte en retiros" },
@@ -67,20 +76,9 @@ const FILTROS_TIPO: { valor: FiltroTipo; label: string; ayuda: string }[] = [
     label: "Evaluaciones",
     ayuda: "Dinero simulado: el costo real de quemar una es su precio, y ese está en el flujo de caja",
   },
-  { valor: "todas", label: "Todas", ayuda: "Los dos tipos juntos" },
 ];
 
-/**
- * El Home abre en **fondeadas**, no en todas.
- *
- * En una fondeada el balance decide cuánto podés retirar: un mal día ahí
- * te saca plata real del bolsillo futuro. En una evaluación son dólares
- * simulados —lo que perdés de verdad al quemarla es su precio, que ya
- * cuenta el flujo de caja—, y encima el día que se quema descarga todo el
- * drawdown de una y se come visualmente al resto del mes. Mezclarlas por
- * defecto contaba el mismo fracaso dos veces y en una unidad que no
- * existe.
- */
+/** Se abre en fondeadas, que es donde hay plata real en juego. */
 const TIPO_DEFAULT: FiltroTipo = "fondeada";
 
 const VERDE = "text-emerald-400";
@@ -150,10 +148,7 @@ export function HomeVista({
 
   /** Las cuentas cuyos días cuentan en trading: todas las del tipo elegido. */
   const idsTrading = useMemo(
-    () =>
-      new Set(
-        cuentas.filter((c) => tipo === "todas" || c.tipo === tipo).map((c) => c.id)
-      ),
+    () => new Set(cuentas.filter((c) => c.tipo === tipo).map((c) => c.id)),
     [cuentas, tipo]
   );
 
@@ -359,10 +354,9 @@ export function HomeVista({
         <p className="text-xs text-neutral-500">
           {infoModo.ayuda}
           {" · Entran todas tus cuentas, también las quemadas"}
-          {modo === "trading" &&
-            tipo !== "fondeada" &&
-            ". Ojo: en una evaluación son dólares simulados, y el día que se quema descarga todo el drawdown de una."}
-          {(modo !== "trading" || tipo === "fondeada") && "."}
+          {modo === "trading" && tipo === "challenge"
+            ? ". Ojo: en una evaluación son dólares simulados, y el día que se quema descarga todo el drawdown de una."
+            : "."}
         </p>
 
         {/* Qué movimientos entran. Ninguno marcado = todos. */}

@@ -360,25 +360,27 @@ lado:
   exactamente los mismos números que el Funding Manager (verificado:
   $1.040 y +26,6%).
 
-Lo único que se filtra en trading es **el tipo de cuenta**: Fondeadas /
-Evaluaciones / Todas, y **abre en Fondeadas**. No hay selector de cuenta
-individual — para mirar una sola está su tarjeta en la sección Cuentas,
-con su curva.
+Lo único que se elige en trading es **el tipo de cuenta**: o Fondeadas o
+Evaluaciones, **nunca las dos juntas**, y abre en Fondeadas. No hay
+selector de cuenta individual — para mirar una sola está su tarjeta en la
+sección Cuentas, con su curva.
 
-**Por qué abre en fondeadas y no en todas** (decidido 2026-08-22, mirando
-los datos reales): en una fondeada el balance decide cuánto podés retirar,
-así que un mal día ahí te saca plata real del bolsillo futuro. En una
-evaluación son **dólares simulados**: lo que perdés de verdad al quemarla
-es su precio, y ese número ya lo cuenta el flujo de caja. Sumar los dos
-por defecto contaba el mismo fracaso dos veces y en una unidad que no
-existe. Y el día que una evaluación se quema descarga todo el drawdown de
-una —en los datos reales, un −$2.000 que se comía visualmente el resto del
-mes—. Los dos tipos siguen a un clic.
+**Por qué no existe un "Todas"** (decidido 2026-08-22, mirando los datos
+reales): un dólar de fondeada y uno de evaluación no son la misma unidad.
+En una fondeada el balance decide cuánto podés retirar, así que un mal día
+te saca plata real del bolsillo futuro. En una evaluación son **dólares
+simulados**: lo que perdés de verdad al quemarla es su precio, y ese
+número ya lo cuenta el flujo de caja. Sumarlos daba un total que no
+significa nada —y contaba el mismo fracaso dos veces—, y encima el día que
+una evaluación se quema descarga todo el drawdown de una: en los datos
+reales, un −$2.000 que se comía visualmente el resto del mes. Con el total
+mezclado el Home abría en −$3.447 cuando la operativa real en fondeadas
+era −$901.
 
-Los montos de los dos tipos suman el total (verificado: −$901 de fondeadas
-más −$2.546 de evaluaciones dan los −$3.447 de "Todas"). **Los días no
-suman**, y está bien: un día en que operaste una fondeada y una evaluación
-es un día en cada subconjunto y un solo día en "Todas".
+Dentro de cada tipo **entran todas las cuentas**, quemadas y archivadas
+incluidas: una cuenta se quema porque perdiste, y esa pérdida es parte de
+cómo venís operando. En evaluaciones la pantalla agrega una línea que
+avisa que son dólares simulados.
 
 **"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y
 entre las 21 y las 24 de Buenos Aires eso ya es mañana. Los cálculos de
