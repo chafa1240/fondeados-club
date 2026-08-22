@@ -4,6 +4,21 @@ Definido 2026-08-16, reordenado el mismo día para publicar temprano. Se
 sigue **paso a paso**, confirmando antes de ejecutar cada uno. Cada paso
 termina en algo que se pueda ver funcionando.
 
+## Dónde estamos (2026-08-20)
+
+Hechos los pasos **1 a 6** más los intermedios (4b, 4c, 5b, 5c, 6b): auth,
+deploy, layout, Cuentas con drawdown en tres modos, gastos y movimientos,
+resultados diarios con balance calculado, y el Funding Manager con
+gráficos.
+
+**Pendiente de acción manual**: correr
+`supabase/012_varias_entradas_por_dia.sql` en el SQL Editor de Supabase.
+
+**Próximo paso**: elegir entre el **Paso 6c (calendario mensual)** y el
+**Paso 7 (Home)** — los dos están descritos abajo. Los pasos 7b a 7e son
+nuevos, salidos del research de competencia del 2026-08-20
+(`docs/COMPETIDORES.md` y `docs/LO-QUE-NOS-FALTA.md`).
+
 ---
 
 ## FASE 0 — Dónde estamos (hecho)
@@ -353,7 +368,23 @@ Salió del mismo trabajo, aunque toca la sección Cuentas.
 - **Logos de las prop firms: descartados** (2026-08-19). Razones en
   `CLAUDE.md`, sección *Explícitamente FUERA del MVP*.
 
-### Paso 7 — Home ← **PRÓXIMO PASO**
+### Paso 6c — Calendario mensual ← **CANDIDATO A PRÓXIMO PASO**
+Agregado el 2026-08-20 después del research de competencia
+(`docs/COMPETIDORES.md`). **Es el hueco más visible que tenemos**: lo
+tienen PropTracker y Trading Control, y nosotros tenemos los datos
+cargados sin ninguna vista de calendario.
+
+Un mes en grilla, cada día con su neto, total por semana al costado y
+total del mes arriba, con filtro por cuenta.
+
+No necesita migración ni cálculos nuevos: `agruparPorDia()` de
+`src/lib/resultados.ts` ya devuelve exactamente lo que hace falta. Ojo con
+un detalle del Paso 5c: un día puede tener **varias entradas**, así que la
+celda muestra el neto del día y, si hubo más de una, cuántas fueron.
+
+**Resultado visible:** ves el mes entero de un vistazo.
+
+### Paso 7 — Home ← **EL OTRO CANDIDATO**
 Recién ahora tiene sentido definirla en detalle, porque ya sabemos qué
 datos existen. Idea: resumen de lo más importante + alertas (drawdown
 cerca del límite, cuenta lista para payout) + accesos rápidos.
@@ -369,7 +400,64 @@ Hay que definir antes de codear: qué alertas entran, si el Home es una
 lista de avisos o un tablero, y qué pasa cuando no hay ninguna cuenta
 cargada.
 
+**Dato del research (2026-08-20)**: los dos competidores abren con una
+fila de números grandes arriba (hoy, ayer, el mes, la racha) y el
+calendario o la curva abajo. **Ninguno de los dos es una lista de
+alertas**, que era una de las opciones que teníamos abiertas.
+
 **Resultado visible:** la pantalla que ves al entrar.
+
+### Paso 7b — Reglas de la cuenta (daily loss limit y compañía)
+Sale del research. Hoy modelamos **una sola** forma de quemar una cuenta
+—tocar el piso del drawdown— y hay otra que la app no ve: pasarse de la
+**pérdida máxima diaria**. De todos los huecos detectados, es el único que
+le puede costar plata a un usuario.
+
+- `perdida_maxima_diaria` en `cuentas_fondeo` (en % o en $, sincronizados
+  como el drawdown), con aviso al cargar un día que se acerca o la pasa.
+- **Días mínimos de trading**: contar los días cargados contra un número
+  que se carga a mano.
+- **Regla de consistencia**: `regla_consistencia` **ya existe** en la tabla
+  desde la migración 005 y no se usa para nada. El cálculo es "el mejor día
+  no puede ser más del X% de la ganancia total".
+
+Los tres juntos son el informe "Accountability" de PropTracker **sin
+catálogo de reglas por firm** — que sigue descartado por mantenimiento
+(ver `CLAUDE.md`). La diferencia es que acá los campos los carga el usuario
+una vez, igual que ya carga el drawdown.
+
+### Paso 7c — Retiros con estado y ROI por firm
+Los dos son del Funding Manager, los dos son chicos y conviene que entren
+juntos.
+
+- **Estado del retiro** (`pedido` | `cobrado`) y `fecha_pedido` en
+  `payouts`. Hoy asumimos que el retiro ya entró; en Apex pasan días entre
+  pedirlo y cobrarlo, y en el medio esa plata ya salió del balance pero
+  todavía no está en el bolsillo.
+- **ROI por firm y por cuenta**: tabla `invertido / cobrado / neto / ROI`.
+  Nuestro gráfico de firms cuenta pasadas y quemadas, pero no dice cuál te
+  dio plata.
+
+### Paso 7d — Import CSV y export
+Ver `docs/LO-QUE-NOS-FALTA.md`, Parte 2. Resumen: **el sync por API con
+Tradovate no se puede** (las cuentas de prop firm están excluidas del
+programa, no es cuestión de plata), pero el CSV que Tradovate deja
+descargar alcanza para armar los días. Con previsualización antes de
+escribir nada y el id de la orden guardado para que reimportar no duplique.
+
+Del mismo tramo: **export/backup** en JSON o CSV, que es barato y es la
+diferencia entre "pruebo esto" y "meto acá mis dos años de historia".
+
+### Paso 7e — Los baratos
+Del research, cosas chicas que suman más de lo que cuestan:
+
+- **Modo privacidad**: un botón que borronea todos los importes de la
+  pantalla (Trading Control lo tiene). Es un booleano y una clase de CSS,
+  y para una app que se abre en el celular en cualquier lado se agradece.
+- **Datos de ejemplo**: ver el dashboard lleno sin cargar nada, con un
+  cartel que aclare que no se guarda. Resuelve el peor momento de un
+  producto así, que es la pantalla vacía del primer día.
+- **Objetivo mensual** de P&L y **notas del día**.
 
 ### Paso 8 — Pulido, dominio y primeros usuarios
 - Comprar el dominio (ej. `fondeadosclub.com`, ~10-15 USD/año) y apuntarlo

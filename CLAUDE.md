@@ -126,16 +126,67 @@ tramo entraron la lista de firms partida en Futuros / Forex con buscador y
 la sugerencia de modo de drawdown según el mercado. Detalle en
 `ROADMAP.md` (Pasos 6 y 6b).
 
-**Próximo paso: Paso 7 — Home.** Todavía sin definir en detalle: hay que
-decidir qué alertas entran antes de escribir código. Lo único que quedó
-escrito sin pantalla del tramo anterior es `resumenDias()` (ratio de días
-ganadores/perdedores) en `src/lib/resultados.ts`, candidato a vivir ahí
-junto con `rachaActual()` y `retiroMaximoSeguro()`.
+**Paso 5c (varias entradas por día) hecho el 2026-08-20.** Salió de usar la
+app: dos trades el mismo día en la misma evaluación y el segundo pisaba al
+primero. Migración `012_varias_entradas_por_dia.sql`. Detalle en la
+sección **Resultados diarios** de este archivo.
 
-**Nota técnica**: `npm run build` no se puede correr desde el entorno de
-Claude (el `node_modules` está instalado para Windows y el sandbox no
-tiene red). La verificación se hace con `npx tsc --noEmit` y `eslint`, y
-el build real lo hace Vercel al pushear.
+⚠️ **La migración 012 está pendiente de correr en Supabase.** Hasta que se
+corra, cargar un segundo resultado en el mismo día falla — la app lo
+detecta y lo dice con ese texto exacto, en vez de tirar el error crudo de
+Postgres.
+
+### Próximo paso — a decidir al arrancar
+
+Hay dos candidatos y conviene elegir uno antes de escribir código:
+
+1. **Calendario mensual** (no está en el roadmap todavía). Es el hueco más
+   visible frente a la competencia: lo tienen los dos y nosotros tenemos
+   los datos sin la vista. No necesita migración ni cálculos nuevos —
+   `agruparPorDia()` ya devuelve lo que hace falta.
+2. **Paso 7 — Home**, que es el que sigue en el roadmap. Sigue sin definir
+   en detalle: hay que decidir qué entra antes de codear. El research dice
+   que los dos competidores abren con una fila de números grandes y el
+   calendario o la curva abajo, **no** con una lista de alertas.
+
+En los dos casos ya hay funciones escritas sin pantalla que quieren vivir
+ahí: `resumenDias()` (días ganadores/perdedores) y `rachaActual()` en
+`src/lib/resultados.ts`, y `retiroMaximoSeguro()` en `cuentas.ts`.
+
+La lista completa de huecos, priorizada y con esfuerzo estimado, está en
+`docs/LO-QUE-NOS-FALTA.md`.
+
+## Dónde está cada documento
+
+- **`CLAUDE.md`** (este archivo) — qué es el proyecto, decisiones tomadas,
+  modelo de datos y las dos secciones largas que hay que leer antes de
+  tocar cálculos: **Drawdown** y **Resultados diarios**.
+- **`docs/ROADMAP.md`** — el plan paso a paso, qué está hecho y qué falta.
+- **`docs/COMPETIDORES.md`** — PropTracker y Trading Control por dentro,
+  tabla comparativa y nuestras ventajas y desventajas.
+- **`docs/LO-QUE-NOS-FALTA.md`** — los huecos priorizados con esfuerzo
+  estimado, y el análisis del **sync con Tradovate** (resumen: por API no
+  se puede con cuentas de prop firm; por CSV sí).
+- **`docs/referencias-diseno/`** — capturas de Lea, PipBack, Tradesyncer,
+  PropTracker y Trading Control.
+
+**Notas técnicas del entorno** (para no volver a tropezar):
+
+- `npm run build` **no corre** desde el entorno de Claude: el
+  `node_modules` está instalado para Windows y el sandbox no tiene red. El
+  build real lo hace Vercel al pushear.
+- La verificación se hace con **`npx tsc --noEmit`**, que sí funciona
+  (~20s). **`npx eslint` se cuelga** sobre la carpeta montada: no vale la
+  pena intentarlo.
+- El puente a la máquina del usuario **no puede borrar archivos**, así que
+  cada comando de git deja un `.git/index.lock` y un `.git/HEAD.lock`
+  huérfanos que rompen el git siguiente. Después de cada commit hay que
+  hacer `mv .git/*.lock _to_delete/`. Esa carpeta está en `.gitignore` y
+  la borra el usuario a mano desde Windows.
+- **El push lo hace el usuario** desde PowerShell: desde el entorno de
+  Claude falla con un 403 del proxy. Los commits van con
+  `git -c user.name="Teodoro Chafatinos" -c user.email="teodorochafa@gmail.com"`,
+  porque el puente no tiene identidad configurada.
 
 ## Monetización (definido 2026-08-16)
 Dos fuentes de ingreso, ambas **post-MVP**:
