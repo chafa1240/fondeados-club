@@ -117,14 +117,26 @@ export function HomeVista({
     [cuentas]
   );
 
-  /** Los ids que dejan pasar los datos, según el filtro de arriba. */
-  const ids = useMemo(() => {
-    if (seleccion === "todas") return new Set(cuentas.map((c) => c.id));
-    if (seleccion === "en_juego") return new Set(vivas.map((c) => c.id));
-    return new Set([seleccion]);
-  }, [seleccion, cuentas, vivas]);
+  /**
+   * Qué cuentas entran.
+   *
+   * **En flujo de caja son siempre todas**, y por eso el desplegable ni
+   * aparece: la plata que pusiste en una cuenta que después se quemó
+   * salió de tu bolsillo igual, y un flujo de caja que la esconde no es
+   * un flujo de caja. La elección solo tiene sentido en trading, donde la
+   * pregunta es "¿cómo vengo operando?" y una cuenta cerrada hace tres
+   * meses no es parte de eso.
+   */
+  const seleccionEfectiva: Seleccion = modo === "flujo" ? "todas" : seleccion;
 
-  const unaSola = seleccion !== "todas" && seleccion !== "en_juego";
+  const ids = useMemo(() => {
+    if (seleccionEfectiva === "todas") return new Set(cuentas.map((c) => c.id));
+    if (seleccionEfectiva === "en_juego") return new Set(vivas.map((c) => c.id));
+    return new Set([seleccionEfectiva]);
+  }, [seleccionEfectiva, cuentas, vivas]);
+
+  const unaSola =
+    seleccionEfectiva !== "todas" && seleccionEfectiva !== "en_juego";
 
   /**
    * Los movimientos que pasan los dos filtros de arriba. Se calcula una
@@ -303,6 +315,7 @@ export function HomeVista({
           ))}
         </div>
 
+        {modo === "trading" && (
         <select
           value={seleccion}
           onChange={(e) => {
@@ -322,18 +335,13 @@ export function HomeVista({
             ))}
           </optgroup>
         </select>
+        )}
       </div>
 
       <div className="-mt-3 space-y-3">
         <p className="text-xs text-neutral-500">
           {infoModo.ayuda}
-          {modo === "flujo" && seleccion === "en_juego" && (
-            <>
-              {" "}
-              · Las cuentas cerradas no entran: para el flujo real de todo lo
-              que invertiste, elegí <em>Todas, incluidas las cerradas</em>.
-            </>
-          )}
+          {modo === "flujo" && " · Entran todas tus cuentas, también las cerradas."}
         </p>
 
         {/* Qué movimientos entran. Ninguno marcado = todos. */}
