@@ -360,9 +360,21 @@ lado:
   exactamente los mismos números que el Funding Manager (verificado:
   $1.040 y +26,6%).
 
-Lo único que se filtra en trading es **el tipo de cuenta**: Todas /
-Fondeadas / Evaluaciones. No hay selector de cuenta individual — para
-mirar una sola cuenta está su tarjeta en la sección Cuentas, con su curva.
+Lo único que se filtra en trading es **el tipo de cuenta**: Fondeadas /
+Evaluaciones / Todas, y **abre en Fondeadas**. No hay selector de cuenta
+individual — para mirar una sola está su tarjeta en la sección Cuentas,
+con su curva.
+
+**Por qué abre en fondeadas y no en todas** (decidido 2026-08-22, mirando
+los datos reales): en una fondeada el balance decide cuánto podés retirar,
+así que un mal día ahí te saca plata real del bolsillo futuro. En una
+evaluación son **dólares simulados**: lo que perdés de verdad al quemarla
+es su precio, y ese número ya lo cuenta el flujo de caja. Sumar los dos
+por defecto contaba el mismo fracaso dos veces y en una unidad que no
+existe. Y el día que una evaluación se quema descarga todo el drawdown de
+una —en los datos reales, un −$2.000 que se comía visualmente el resto del
+mes—. Los dos tipos siguen a un clic.
+
 Los montos de los dos tipos suman el total (verificado: −$901 de fondeadas
 más −$2.546 de evaluaciones dan los −$3.447 de "Todas"). **Los días no
 suman**, y está bien: un día en que operaste una fondeada y una evaluación

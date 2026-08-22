@@ -60,11 +60,28 @@ import {
  */
 type FiltroTipo = "todas" | Tipo;
 
-const FILTROS_TIPO: { valor: FiltroTipo; label: string }[] = [
-  { valor: "todas", label: "Todas" },
-  { valor: "fondeada", label: "Fondeadas" },
-  { valor: "challenge", label: "Evaluaciones" },
+const FILTROS_TIPO: { valor: FiltroTipo; label: string; ayuda: string }[] = [
+  { valor: "fondeada", label: "Fondeadas", ayuda: "Lo que se convierte en retiros" },
+  {
+    valor: "challenge",
+    label: "Evaluaciones",
+    ayuda: "Dinero simulado: el costo real de quemar una es su precio, y ese está en el flujo de caja",
+  },
+  { valor: "todas", label: "Todas", ayuda: "Los dos tipos juntos" },
 ];
+
+/**
+ * El Home abre en **fondeadas**, no en todas.
+ *
+ * En una fondeada el balance decide cuánto podés retirar: un mal día ahí
+ * te saca plata real del bolsillo futuro. En una evaluación son dólares
+ * simulados —lo que perdés de verdad al quemarla es su precio, que ya
+ * cuenta el flujo de caja—, y encima el día que se quema descarga todo el
+ * drawdown de una y se come visualmente al resto del mes. Mezclarlas por
+ * defecto contaba el mismo fracaso dos veces y en una unidad que no
+ * existe.
+ */
+const TIPO_DEFAULT: FiltroTipo = "fondeada";
 
 const VERDE = "text-emerald-400";
 const ROJO = "text-rose-400";
@@ -106,7 +123,7 @@ export function HomeVista({
   movimientos: Movimiento[];
 }) {
   const [modo, setModo] = useState<ModoHome>("trading");
-  const [tipo, setTipo] = useState<FiltroTipo>("todas");
+  const [tipo, setTipo] = useState<FiltroTipo>(TIPO_DEFAULT);
   // Vacío = todos. Solo aplica al flujo de caja.
   const [flujos, setFlujos] = useState<Flujo[]>([]);
   const [periodo, setPeriodo] = useState<Periodo>(PERIODO_DEFAULT);
@@ -320,6 +337,7 @@ export function HomeVista({
             {FILTROS_TIPO.map((f) => (
               <button
                 key={f.valor}
+                title={f.ayuda}
                 onClick={() => {
                   setTipo(f.valor);
                   setDiaAbierto(null);
@@ -341,8 +359,10 @@ export function HomeVista({
         <p className="text-xs text-neutral-500">
           {infoModo.ayuda}
           {" · Entran todas tus cuentas, también las quemadas"}
-          {modo === "trading" && ": una cuenta se quema porque perdiste, y esa pérdida es parte de cómo venís operando"}
-          .
+          {modo === "trading" &&
+            tipo !== "fondeada" &&
+            ". Ojo: en una evaluación son dólares simulados, y el día que se quema descarga todo el drawdown de una."}
+          {(modo !== "trading" || tipo === "fondeada") && "."}
         </p>
 
         {/* Qué movimientos entran. Ninguno marcado = todos. */}
