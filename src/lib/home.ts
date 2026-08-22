@@ -148,6 +148,89 @@ export function diasDeFlujo(movs: Movimiento[]): DiaHome[] {
   );
 }
 
+const DIAS_MS = 24 * 60 * 60 * 1000;
+
+/* ---------- Períodos del acumulado ---------- */
+
+/**
+ * La ventana de tiempo del número acumulado.
+ *
+ * "Hoy" y "Este mes" son ventanas fijas y no se tocan; el tercer número
+ * es el que se mueve, porque la pregunta cambia según el momento: a veces
+ * es "¿cómo vengo esta semana?" y a veces "¿cuánto llevo desde que
+ * empecé?".
+ */
+export const PERIODOS = ["7d", "30d", "3m", "6m", "12m", "todo"] as const;
+export type Periodo = (typeof PERIODOS)[number];
+
+export const PERIODO_INFO: Record<
+  Periodo,
+  { label: string; dias?: number; meses?: number }
+> = {
+  "7d": { label: "Últimos 7 días", dias: 7 },
+  "30d": { label: "Últimos 30 días", dias: 30 },
+  "3m": { label: "Últimos 3 meses", meses: 3 },
+  "6m": { label: "Últimos 6 meses", meses: 6 },
+  "12m": { label: "Últimos 12 meses", meses: 12 },
+  todo: { label: "Desde siempre" },
+};
+
+export const PERIODO_DEFAULT: Periodo = "todo";
+
+/**
+ * Desde qué día cuenta un período, incluido. `null` = desde siempre.
+ *
+ * Las cuentas van por `Date.UTC` y devuelven texto ISO, igual que el
+ * resto del archivo: nunca se construye un `Date` con la fecha local,
+ * porque en UTC−3 eso corre el día para atrás.
+ *
+ * "Últimos 7 días" **incluye hoy**: son hoy y los seis anteriores, no los
+ * siete anteriores a hoy. Es lo que espera cualquiera que mire una
+ * semana.
+ */
+export function desdeDelPeriodo(periodo: Periodo, hoy: string): string | null {
+  const info = PERIODO_INFO[periodo];
+  const [a, m, d] = hoy.split("-").map(Number);
+
+  if (info.dias) {
+    return new Date(Date.UTC(a, m - 1, d) - (info.dias - 1) * DIAS_MS)
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  if (info.meses) {
+    // `Date.UTC` normaliza solo los meses que se pasan de rango, así que
+    // restar 3 a enero cae en octubre del año anterior sin hacer cuentas.
+    // Un 31 en un mes de 30 se corre al 1 del siguiente, y para una
+    // ventana de meses eso es irrelevante.
+    return new Date(Date.UTC(a, m - 1 - info.meses, d)).toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+/** Los días que caen dentro del período. */
+export function diasDelPeriodo(
+  dias: DiaHome[],
+  periodo: Periodo,
+  hoy: string
+): DiaHome[] {
+  const desde = desdeDelPeriodo(periodo, hoy);
+  if (desde === null) return dias;
+  return dias.filter((d) => d.fecha >= desde && d.fecha <= hoy);
+}
+
+/** Lo mismo, pero sobre movimientos (para el ROI, que es plata y no días). */
+export function movimientosDelPeriodo<T extends { fecha: string }>(
+  movs: T[],
+  periodo: Periodo,
+  hoy: string
+): T[] {
+  const desde = desdeDelPeriodo(periodo, hoy);
+  if (desde === null) return movs;
+  return movs.filter((m) => m.fecha >= desde && m.fecha <= hoy);
+}
+
 /* ---------- La fila de números grandes ---------- */
 
 export type ResumenHome = {
@@ -228,8 +311,6 @@ export type MesCalendario = {
   ganadores: number;
   perdedores: number;
 };
-
-const DIAS_MS = 24 * 60 * 60 * 1000;
 
 /** "2026-08" -> [2026, 8]. Sin pasar por Date, para no correr zonas horarias. */
 function partesMes(mes: string): [number, number] {

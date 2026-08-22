@@ -307,8 +307,22 @@ lista de alertas — abrir la app con una pared de advertencias es la forma
 más rápida de que dejes de mirarlas.
 
 De arriba a abajo: switch Trading / Flujo de caja + filtro de cuenta →
-cuatro números (hoy, este mes, acumulado, racha) → calendario mensual con
-el total de cada semana → hasta cuatro avisos → las cuentas en juego.
+cuatro números → calendario mensual con el total de cada semana → hasta
+cuatro avisos → las cuentas en juego.
+
+**Los cuatro números** son: *Hoy*, *Este mes*, el **acumulado del período**
+y un cuarto que cambia según el modo.
+
+- El **acumulado** es el único con ventana elegible (7 días, 30 días, 3, 6
+  o 12 meses, o desde siempre), y **el selector es el título de la
+  tarjeta**: la pregunta cambia según el momento —a veces es "¿cómo vengo
+  esta semana?" y a veces "¿cuánto llevo desde que empecé?"— y no tenía
+  sentido gastar una tarjeta más en eso. "Últimos 7 días" **incluye hoy**.
+- El cuarto es **Racha** en trading y **ROI** en flujo de caja. La racha en
+  flujo de caja no dice nada: ahí un día en rojo es el día que compraste
+  una evaluación, y comprar no es perder. El ROI se calcula sobre los
+  movimientos del período y no sobre los días, porque necesita separar lo
+  invertido de lo cobrado y un día ya viene con los dos sumados.
 
 **Los dos modos, que es la decisión de fondo:**
 

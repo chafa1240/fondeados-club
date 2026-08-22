@@ -15,11 +15,12 @@ import {
   tieneRetiro,
   type Cuenta,
 } from "@/lib/cuentas";
-import { TIPO_MOVIMIENTO_INFO, type Movimiento } from "@/lib/movimientos";
+import { TIPO_MOVIMIENTO_INFO, totales, type Movimiento } from "@/lib/movimientos";
 import type { Resultado } from "@/lib/resultados";
 import {
   armarMes,
   diasDeFlujo,
+  diasDelPeriodo,
   diasDeTrading,
   filtrarFlujos,
   FLUJOS,
@@ -29,9 +30,14 @@ import {
   MODOS_HOME,
   MODO_HOME_INFO,
   mesesConDatos,
+  movimientosDelPeriodo,
+  PERIODOS,
+  PERIODO_DEFAULT,
+  PERIODO_INFO,
   resumenHome,
   type Flujo,
   type ModoHome,
+  type Periodo,
 } from "@/lib/home";
 
 /**
@@ -59,14 +65,14 @@ function Numero({
   clase,
   pie,
 }: {
-  titulo: string;
+  titulo: React.ReactNode;
   valor: string;
   clase?: string;
   pie?: string;
 }) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-      <p className="text-xs text-neutral-500">{titulo}</p>
+      <div className="text-xs text-neutral-500">{titulo}</div>
       <p className={`mt-1 text-2xl font-bold tabular-nums ${clase ?? ""}`}>
         {valor}
       </p>
@@ -89,6 +95,7 @@ export function HomeVista({
   const [seleccion, setSeleccion] = useState<Seleccion>("en_juego");
   // Vacío = todos. Solo aplica al flujo de caja.
   const [flujos, setFlujos] = useState<Flujo[]>([]);
+  const [periodo, setPeriodo] = useState<Periodo>(PERIODO_DEFAULT);
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
 
   // "Hoy" lo decide el navegador: el servidor corre en UTC y de noche eso
@@ -119,22 +126,53 @@ export function HomeVista({
 
   const unaSola = seleccion !== "todas" && seleccion !== "en_juego";
 
-  const dias = useMemo(() => {
-    if (modo === "trading") {
-      return diasDeTrading(resultados.filter((r) => ids.has(r.cuenta_id)));
-    }
-
-    // Los gastos generales (data feed, plataforma) no son de ninguna
-    // cuenta: entran siempre salvo que estés mirando una sola.
-    return diasDeFlujo(
+  /**
+   * Los movimientos que pasan los dos filtros de arriba. Se calcula una
+   * vez y lo usan el calendario, el detalle del día y el ROI: si cada uno
+   * rehiciera el filtro, tarde o temprano uno quedaría con una regla
+   * distinta y los números dejarían de coincidir entre sí.
+   *
+   * Los gastos generales (data feed, plataforma) no son de ninguna cuenta:
+   * entran siempre, salvo que estés mirando una sola.
+   */
+  const movsVisibles = useMemo(
+    () =>
       filtrarFlujos(
         movimientos.filter((m) =>
           m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id)
         ),
         flujos
-      )
-    );
-  }, [modo, resultados, movimientos, ids, unaSola, flujos]);
+      ),
+    [movimientos, ids, unaSola, flujos]
+  );
+
+  const dias = useMemo(() => {
+    if (modo === "trading") {
+      return diasDeTrading(resultados.filter((r) => ids.has(r.cuenta_id)));
+    }
+    return diasDeFlujo(movsVisibles);
+  }, [modo, resultados, ids, movsVisibles]);
+
+  /** El tercer número: la ventana de tiempo la elige el usuario. */
+  const acumulado = useMemo(() => {
+    if (!hoy) return null;
+    const dentro = diasDelPeriodo(dias, periodo, hoy);
+    return {
+      monto: dentro.reduce((a, d) => a + d.monto, 0),
+      dias: dentro.length,
+    };
+  }, [dias, periodo, hoy]);
+
+  /**
+   * El ROI del período, solo en flujo de caja: cuánto rindió lo que
+   * pusiste. Se calcula sobre los movimientos y no sobre los días, porque
+   * necesita separar lo invertido de lo cobrado, y un día ya viene con
+   * los dos sumados.
+   */
+  const roi = useMemo(() => {
+    if (modo !== "flujo" || !hoy) return null;
+    return totales(movimientosDelPeriodo(movsVisibles, periodo, hoy));
+  }, [modo, movsVisibles, periodo, hoy]);
 
   const resumen = useMemo(
     () => (hoy ? resumenHome(dias, hoy) : null),
@@ -163,14 +201,8 @@ export function HomeVista({
         }));
     }
 
-    return filtrarFlujos(
-      movimientos.filter(
-        (m) =>
-          m.fecha === diaAbierto &&
-          (m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id))
-      ),
-      flujos
-    )
+    return movsVisibles
+      .filter((m) => m.fecha === diaAbierto)
       .map((m) => ({
         id: m.id,
         cuenta: m.cuenta_id
@@ -179,7 +211,7 @@ export function HomeVista({
         monto: m.tipo === "retiro" ? m.monto : -m.monto,
         detalle: m.detalle ?? TIPO_MOVIMIENTO_INFO[m.tipo].label,
       }));
-  }, [diaAbierto, modo, resultados, movimientos, ids, unaSola, nombres, flujos]);
+  }, [diaAbierto, modo, resultados, movsVisibles, ids, nombres]);
 
   /* ---------- Avisos ---------- */
 
@@ -365,32 +397,75 @@ export function HomeVista({
           valor={resumen ? plata(resumen.mes) : "—"}
           clase={resumen ? color(resumen.mes) : undefined}
         />
+        {/* El único número con ventana elegible: el selector es el título. */}
         <Numero
-          titulo="Acumulado"
-          valor={resumen ? plata(resumen.total) : "—"}
-          clase={resumen ? color(resumen.total) : undefined}
-          pie={resumen ? `${resumen.dias} días cargados` : undefined}
-        />
-        <Numero
-          titulo="Racha"
-          valor={
-            resumen && resumen.racha.dias > 0
-              ? `${resumen.racha.dias} ${resumen.racha.dias === 1 ? "día" : "días"}`
-              : "—"
+          titulo={
+            <select
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value as Periodo)}
+              aria-label="Período del acumulado"
+              className="-ml-1 cursor-pointer rounded bg-transparent px-1 py-0.5 text-xs text-neutral-500 outline-none transition hover:text-neutral-300 focus:text-neutral-300"
+            >
+              {PERIODOS.map((p) => (
+                <option key={p} value={p} className="bg-neutral-900 text-neutral-300">
+                  {PERIODO_INFO[p].label}
+                </option>
+              ))}
+            </select>
           }
-          clase={
-            resumen && resumen.racha.dias > 0
-              ? resumen.racha.ganadora
-                ? VERDE
-                : ROJO
-              : "text-neutral-600"
-          }
+          valor={acumulado ? plata(acumulado.monto) : "—"}
+          clase={acumulado ? color(acumulado.monto) : undefined}
           pie={
-            resumen && resumen.dias > 0
-              ? `${resumen.ganadores} en verde · ${resumen.perdedores} en rojo`
+            acumulado
+              ? acumulado.dias === 0
+                ? "Sin días en este período"
+                : `${acumulado.dias} ${acumulado.dias === 1 ? "día" : "días"} ${
+                    modo === "trading" ? "cargados" : "con movimientos"
+                  }`
               : undefined
           }
         />
+
+        {/* En trading la racha dice algo; en flujo de caja no, porque un día
+            en rojo ahí es el día que compraste una evaluación, y comprar no
+            es perder. Ese lugar lo ocupa el ROI. */}
+        {modo === "flujo" ? (
+          <Numero
+            titulo="ROI"
+            valor={roi && roi.roi !== null ? `${roi.roi > 0 ? "+" : ""}${roi.roi.toFixed(1)}%` : "—"}
+            clase={
+              roi && roi.roi !== null ? color(roi.roi) : "text-neutral-600"
+            }
+            pie={
+              roi
+                ? roi.invertido > 0
+                  ? `${plata(roi.cobrado)} cobrado sobre ${plata(roi.invertido)} invertido`
+                  : "Todavía no hay gastos en este período"
+                : undefined
+            }
+          />
+        ) : (
+          <Numero
+            titulo="Racha"
+            valor={
+              resumen && resumen.racha.dias > 0
+                ? `${resumen.racha.dias} ${resumen.racha.dias === 1 ? "día" : "días"}`
+                : "—"
+            }
+            clase={
+              resumen && resumen.racha.dias > 0
+                ? resumen.racha.ganadora
+                  ? VERDE
+                  : ROJO
+                : "text-neutral-600"
+            }
+            pie={
+              resumen && resumen.dias > 0
+                ? `${resumen.ganadores} en verde · ${resumen.perdedores} en rojo`
+                : undefined
+            }
+          />
+        )}
       </div>
 
       {/* ---------- El calendario ---------- */}
