@@ -19,14 +19,18 @@ import { TIPO_MOVIMIENTO_INFO, type Movimiento } from "@/lib/movimientos";
 import type { Resultado } from "@/lib/resultados";
 import {
   armarMes,
-  diasDeNeto,
+  diasDeFlujo,
   diasDeTrading,
+  filtrarFlujos,
+  FLUJOS,
+  FLUJO_INFO,
   hoyLocal,
   mesDeFecha,
   MODOS_HOME,
   MODO_HOME_INFO,
   mesesConDatos,
   resumenHome,
+  type Flujo,
   type ModoHome,
 } from "@/lib/home";
 
@@ -83,6 +87,8 @@ export function HomeVista({
 }) {
   const [modo, setModo] = useState<ModoHome>("trading");
   const [seleccion, setSeleccion] = useState<Seleccion>("en_juego");
+  // Vacío = todos. Solo aplica al flujo de caja.
+  const [flujos, setFlujos] = useState<Flujo[]>([]);
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
 
   // "Hoy" lo decide el navegador: el servidor corre en UTC y de noche eso
@@ -120,12 +126,15 @@ export function HomeVista({
 
     // Los gastos generales (data feed, plataforma) no son de ninguna
     // cuenta: entran siempre salvo que estés mirando una sola.
-    return diasDeNeto(
-      movimientos.filter((m) =>
-        m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id)
+    return diasDeFlujo(
+      filtrarFlujos(
+        movimientos.filter((m) =>
+          m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id)
+        ),
+        flujos
       )
     );
-  }, [modo, resultados, movimientos, ids, unaSola]);
+  }, [modo, resultados, movimientos, ids, unaSola, flujos]);
 
   const resumen = useMemo(
     () => (hoy ? resumenHome(dias, hoy) : null),
@@ -154,12 +163,14 @@ export function HomeVista({
         }));
     }
 
-    return movimientos
-      .filter(
+    return filtrarFlujos(
+      movimientos.filter(
         (m) =>
           m.fecha === diaAbierto &&
           (m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id))
-      )
+      ),
+      flujos
+    )
       .map((m) => ({
         id: m.id,
         cuenta: m.cuenta_id
@@ -168,7 +179,7 @@ export function HomeVista({
         monto: m.tipo === "retiro" ? m.monto : -m.monto,
         detalle: m.detalle ?? TIPO_MOVIMIENTO_INFO[m.tipo].label,
       }));
-  }, [diaAbierto, modo, resultados, movimientos, ids, unaSola, nombres]);
+  }, [diaAbierto, modo, resultados, movimientos, ids, unaSola, nombres, flujos]);
 
   /* ---------- Avisos ---------- */
 
@@ -281,16 +292,57 @@ export function HomeVista({
         </select>
       </div>
 
-      <p className="-mt-3 text-xs text-neutral-500">
-        {infoModo.ayuda}
-        {modo === "neto" && seleccion === "en_juego" && (
-          <>
-            {" "}
-            · Las cuentas cerradas no entran: para el neto real de todo lo
-            que invertiste, elegí <em>Todas, incluidas las cerradas</em>.
-          </>
+      <div className="-mt-3 space-y-3">
+        <p className="text-xs text-neutral-500">
+          {infoModo.ayuda}
+          {modo === "flujo" && seleccion === "en_juego" && (
+            <>
+              {" "}
+              · Las cuentas cerradas no entran: para el flujo real de todo lo
+              que invertiste, elegí <em>Todas, incluidas las cerradas</em>.
+            </>
+          )}
+        </p>
+
+        {/* Qué movimientos entran. Ninguno marcado = todos. */}
+        {modo === "flujo" && (
+          <div className="flex flex-wrap items-center gap-2">
+            {FLUJOS.map((f) => {
+              const activo = flujos.includes(f);
+              return (
+                <button
+                  key={f}
+                  title={FLUJO_INFO[f].ayuda}
+                  onClick={() => {
+                    setFlujos((v) =>
+                      v.includes(f) ? v.filter((x) => x !== f) : [...v, f]
+                    );
+                    setDiaAbierto(null);
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs transition ${
+                    activo
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                      : "border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
+                  }`}
+                >
+                  {FLUJO_INFO[f].label}
+                </button>
+              );
+            })}
+            {flujos.length > 0 && (
+              <button
+                onClick={() => {
+                  setFlujos([]);
+                  setDiaAbierto(null);
+                }}
+                className="text-xs text-neutral-500 underline-offset-2 transition hover:text-neutral-300 hover:underline"
+              >
+                Ver todo
+              </button>
+            )}
+          </div>
         )}
-      </p>
+      </div>
 
       {/* ---------- Los números ---------- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

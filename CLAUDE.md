@@ -306,15 +306,28 @@ calendario abajo**, que es como abren los dos competidores. No es una
 lista de alertas — abrir la app con una pared de advertencias es la forma
 más rápida de que dejes de mirarlas.
 
-De arriba a abajo: switch Trading/Neto + filtro de cuenta → cuatro números
-(hoy, este mes, acumulado, racha) → calendario mensual con el total de
-cada semana → hasta cuatro avisos → las cuentas en juego.
+De arriba a abajo: switch Trading / Flujo de caja + filtro de cuenta →
+cuatro números (hoy, este mes, acumulado, racha) → calendario mensual con
+el total de cada semana → hasta cuatro avisos → las cuentas en juego.
 
 **Los dos modos, que es la decisión de fondo:**
 
 - `trading` — lo que ganaste o perdiste **operando** (`resultados_diarios`).
-- `neto` — lo que quedó **en tu bolsillo**: retiros cobrados netos del
-  profit split, menos gastos. El mismo neto del Funding Manager.
+- `flujo` — el **flujo de caja**: lo que entró y salió de tu bolsillo,
+  retiros cobrados netos del profit split menos gastos. El mismo neto del
+  Funding Manager (verificado: con *Todas, incluidas las cerradas* y sin
+  filtros, los dos dan el mismo número).
+
+**El flujo de caja se puede filtrar** por tipo de movimiento, en cuatro
+cajones: Evaluaciones, Fee de activación, Retiros y Otros gastos. Son
+menos que las categorías de `movimientos.ts` a propósito — el Home
+responde "¿en qué se me va y de dónde me viene?" y para eso alcanzan
+cuatro; el detalle categoría por categoría sigue siendo del Funding
+Manager, que es el dueño de los movimientos. **El reset va con las
+evaluaciones**: pagarle a la firm para reiniciar una cuenta es el mismo
+gasto que comprarla de nuevo. **Ningún chip marcado significa todos**, no
+ninguno: es lo que espera cualquiera que despinte el último filtro, y
+evita una pantalla en cero que no explica por qué está en cero.
 
 **Nunca se suman.** Un día verde de trading y el retiro que después hacés
 de esa misma ganancia son la misma plata contada dos veces. Por eso es un
@@ -323,7 +336,7 @@ que mezcle los dos, está mal.
 
 **Por defecto entran solo las cuentas en juego**: el Home responde "¿cómo
 vengo hoy?". El desplegable tiene *Todas, incluidas las cerradas* para el
-neto real del negocio (si no, los costos de las cuentas quemadas
+flujo real del negocio (si no, los costos de las cuentas quemadas
 desaparecen), y en modo neto la pantalla lo aclara sola.
 
 **"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y

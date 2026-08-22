@@ -11,42 +11,102 @@
  * - `trading`: lo que ganaste o perdiste **operando**. Sale de
  *   `resultados_diarios`. Es el número que mirás día a día y el que
  *   muestran los calendarios de la competencia.
- * - `neto`: lo que quedó **en tu bolsillo**. Retiros cobrados (ya netos
- *   del profit split) menos gastos. Es el mismo neto del Funding Manager.
+ * - `flujo`: el **flujo de caja**, lo que entró y salió de tu bolsillo.
+ *   Retiros cobrados (ya netos del profit split) menos gastos. Es el
+ *   mismo neto del Funding Manager, y se puede filtrar por tipo de
+ *   movimiento.
  *
  * Ojo con la tentación de sumarlos: un día verde de trading y el retiro
  * que después hacés de esa misma ganancia son **la misma plata contada
  * dos veces**. Por eso son dos modos y no dos series del mismo gráfico.
  */
 
-import type { Movimiento } from "./movimientos";
+import type { Categoria, Movimiento } from "./movimientos";
 import { agruparPorDia, rachaDeDias, type Resultado } from "./resultados";
 
-export const MODOS_HOME = ["trading", "neto"] as const;
+export const MODOS_HOME = ["trading", "flujo"] as const;
 export type ModoHome = (typeof MODOS_HOME)[number];
 
-export const MODO_HOME_INFO: Record<
-  ModoHome,
-  { label: string; ayuda: string; unidad: string }
-> = {
+export const MODO_HOME_INFO: Record<ModoHome, { label: string; ayuda: string }> = {
   trading: {
     label: "Trading",
     ayuda: "Lo que ganaste o perdiste operando",
-    unidad: "resultado",
   },
-  neto: {
-    label: "Neto",
-    ayuda: "Retiros cobrados menos gastos: lo que quedó en tu bolsillo",
-    unidad: "neto",
+  flujo: {
+    label: "Flujo de caja",
+    ayuda: "Lo que entró y salió: retiros cobrados menos gastos",
   },
 };
+
+/* ---------- Los tipos de movimiento del flujo de caja ---------- */
+
+/**
+ * Los cuatro tipos de plata que se pueden filtrar en el flujo de caja.
+ *
+ * Son menos que las categorías de `movimientos.ts` a propósito: el Home
+ * responde "¿en qué se me va y de dónde me viene?", y para eso alcanzan
+ * cuatro cajones. El detalle categoría por categoría sigue estando en el
+ * Funding Manager, que es el dueño de los movimientos.
+ */
+export const FLUJOS = ["evaluaciones", "activacion", "retiros", "otros"] as const;
+export type Flujo = (typeof FLUJOS)[number];
+
+export const FLUJO_INFO: Record<Flujo, { label: string; ayuda: string }> = {
+  evaluaciones: {
+    label: "Evaluaciones",
+    ayuda: "Lo que pagaste por comprar evaluaciones, y los resets",
+  },
+  activacion: {
+    label: "Fee de activación",
+    ayuda: "Lo que costó pasar una evaluación a fondeada",
+  },
+  retiros: {
+    label: "Retiros",
+    ayuda: "Lo que cobraste, ya neto del profit split",
+  },
+  otros: {
+    label: "Otros gastos",
+    ayuda: "Data feed, plataforma, y todo lo que no es de una cuenta puntual",
+  },
+};
+
+/**
+ * En qué cajón cae un movimiento.
+ *
+ * El **reset va con las evaluaciones**: pagarle a la firm para reiniciar
+ * una cuenta es el mismo tipo de gasto que comprarla de nuevo, y de hecho
+ * así se carga (ver `CATEGORIAS_MANUALES` en `movimientos.ts`).
+ */
+export function flujoDe(mov: Movimiento): Flujo {
+  if (mov.tipo === "retiro") return "retiros";
+
+  const porCategoria: Partial<Record<Categoria, Flujo>> = {
+    fee_challenge: "evaluaciones",
+    reset: "evaluaciones",
+    activacion: "activacion",
+  };
+
+  return (mov.categoria && porCategoria[mov.categoria]) || "otros";
+}
+
+/**
+ * Deja pasar solo los movimientos elegidos.
+ *
+ * Una lista vacía es **todos**, no ninguno: es lo que espera cualquiera
+ * que despinte el último filtro, y evita la pantalla en cero que no
+ * explica por qué está en cero.
+ */
+export function filtrarFlujos(movs: Movimiento[], elegidos: Flujo[]): Movimiento[] {
+  if (elegidos.length === 0) return movs;
+  return movs.filter((m) => elegidos.includes(flujoDe(m)));
+}
 
 /**
  * Un día con plata, venga del modo que venga.
  *
  * `entradas` es cuántas cosas lo componen: en trading, cuántos resultados
  * se cargaron ese día (desde la migración 012 puede haber varios); en
- * neto, cuántos movimientos hubo.
+ * flujo de caja, cuántos movimientos hubo.
  */
 export type DiaHome = {
   fecha: string;
@@ -64,12 +124,12 @@ export function diasDeTrading(resultados: Resultado[]): DiaHome[] {
 }
 
 /**
- * Los días de bolsillo: retiros menos gastos, agrupados por fecha.
+ * Los días de flujo de caja: lo que entró menos lo que salió, por fecha.
  *
  * El monto de un retiro ya viene neto del profit split (lo normaliza
  * `movimientosDe`), así que acá solo hay que ponerle el signo.
  */
-export function diasDeNeto(movs: Movimiento[]): DiaHome[] {
+export function diasDeFlujo(movs: Movimiento[]): DiaHome[] {
   const mapa = new Map<string, DiaHome>();
 
   for (const m of movs) {

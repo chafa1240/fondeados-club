@@ -49,7 +49,8 @@ export default async function HomePage() {
 
   // La misma lista de movimientos del Funding Manager, con los automáticos
   // incluidos (precio de la evaluación, fee de activación, retiros previos):
-  // el modo "neto" del Home tiene que dar el mismo número que esa pantalla.
+  // el modo "flujo de caja" del Home tiene que dar el mismo número que
+  // esa pantalla cuando no hay ningún filtro puesto.
   const movimientos = movimientosDe(
     (gastos ?? []) as Gasto[],
     retiros,
