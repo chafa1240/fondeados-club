@@ -329,8 +329,7 @@ y un cuarto que cambia según el modo.
 - `trading` — lo que ganaste o perdiste **operando** (`resultados_diarios`).
 - `flujo` — el **flujo de caja**: lo que entró y salió de tu bolsillo,
   retiros cobrados netos del profit split menos gastos. El mismo neto del
-  Funding Manager (verificado: con *Todas, incluidas las cerradas* y sin
-  filtros, los dos dan el mismo número).
+  Funding Manager cuando no hay ningún filtro de movimiento puesto.
 
 **El flujo de caja se puede filtrar** por tipo de movimiento, en cuatro
 cajones: Evaluaciones, Fee de activación, Retiros y Otros gastos. Son
@@ -348,10 +347,15 @@ de esa misma ganancia son la misma plata contada dos veces. Por eso es un
 switch y no dos series del mismo gráfico. Si alguna vez aparece un número
 que mezcle los dos, está mal.
 
-**Por defecto entran solo las cuentas en juego**: el Home responde "¿cómo
-vengo hoy?". El desplegable tiene *Todas, incluidas las cerradas* para el
-flujo real del negocio (si no, los costos de las cuentas quemadas
-desaparecen), y en modo neto la pantalla lo aclara sola.
+**Qué cuentas entran, y por qué el filtro solo existe en trading.** En
+trading el desplegable arranca en las cuentas **en juego** (el Home
+responde "¿cómo vengo hoy?", y una cuenta quemada hace tres meses no es
+parte de eso) y permite ver una sola o incluir las cerradas. En **flujo de
+caja el desplegable no aparece: entran siempre todas**, porque la plata
+que pusiste en una cuenta que después se quemó salió de tu bolsillo igual,
+y un flujo de caja que la esconde no es un flujo de caja. Con eso el
+acumulado "desde siempre" y el ROI dan exactamente los mismos números que
+el Funding Manager (verificado: $1.040 y +26,6%).
 
 **"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y
 entre las 21 y las 24 de Buenos Aires eso ya es mañana. Los cálculos de
