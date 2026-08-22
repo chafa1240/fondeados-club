@@ -291,18 +291,29 @@ export function montoDeResultado(tamano: number, pct: number) {
  * aunque adentro haya habido una operación perdedora.
  */
 export function rachaActual(resultados: Resultado[]) {
-  const orden = agruparPorDia(resultados).reverse();
-  if (orden.length === 0) return { dias: 0, ganadora: true };
+  return rachaDeDias(agruparPorDia(resultados));
+}
 
-  const ganadora = orden[0].monto >= 0;
-  let dias = 0;
+/**
+ * La misma racha, pero sobre días ya agrupados y ordenados de más viejo a
+ * más nuevo.
+ *
+ * Vive suelta porque el Home la necesita sobre días que no siempre salen
+ * de `resultados_diarios` (en modo neto son retiros y gastos). La regla de
+ * qué corta una racha tiene que ser una sola, acá.
+ */
+export function rachaDeDias(dias: { monto: number }[]) {
+  if (dias.length === 0) return { dias: 0, ganadora: true };
 
-  for (const d of orden) {
-    if (d.monto >= 0 !== ganadora) break;
-    dias += 1;
+  const ganadora = dias[dias.length - 1].monto >= 0;
+  let cuenta = 0;
+
+  for (let i = dias.length - 1; i >= 0; i--) {
+    if (dias[i].monto >= 0 !== ganadora) break;
+    cuenta += 1;
   }
 
-  return { dias, ganadora };
+  return { dias: cuenta, ganadora };
 }
 
 /** Días ganadores, perdedores y totales. También cuenta días, no entradas. */

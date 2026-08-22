@@ -131,27 +131,25 @@ app: dos trades el mismo día en la misma evaluación y el segundo pisaba al
 primero. Migración `012_varias_entradas_por_dia.sql`. Detalle en la
 sección **Resultados diarios** de este archivo.
 
-⚠️ **La migración 012 está pendiente de correr en Supabase.** Hasta que se
-corra, cargar un segundo resultado en el mismo día falla — la app lo
-detecta y lo dice con ese texto exacto, en vez de tirar el error crudo de
-Postgres.
+La migración 012 **ya se corrió** en Supabase (2026-08-22).
 
-### Próximo paso — a decidir al arrancar
+**Paso 7 (Home) hecho el 2026-08-22**, con el **calendario mensual**
+adentro: los dos candidatos que estaban abiertos se resolvieron de una
+sola vez, porque el lugar natural del calendario es el cuerpo del Home.
+Detalle en la sección **HOME** de este archivo y en `ROADMAP.md`.
 
-Hay dos candidatos y conviene elegir uno antes de escribir código:
+### Próximo paso
 
-1. **Calendario mensual** (no está en el roadmap todavía). Es el hueco más
-   visible frente a la competencia: lo tienen los dos y nosotros tenemos
-   los datos sin la vista. No necesita migración ni cálculos nuevos —
-   `agruparPorDia()` ya devuelve lo que hace falta.
-2. **Paso 7 — Home**, que es el que sigue en el roadmap. Sigue sin definir
-   en detalle: hay que decidir qué entra antes de codear. El research dice
-   que los dos competidores abren con una fila de números grandes y el
-   calendario o la curva abajo, **no** con una lista de alertas.
+**Paso 7b — reglas de la cuenta**: pérdida máxima diaria, días mínimos de
+trading y regla de consistencia (la columna `regla_consistencia` existe
+desde la migración 005 y no se usa). De todos los huecos detectados es el
+único que **le puede costar plata a un usuario**: hoy la app modela una
+sola forma de quemar una cuenta —tocar el piso del drawdown— y no ve la
+otra, que es pasarse de la pérdida diaria.
 
-En los dos casos ya hay funciones escritas sin pantalla que quieren vivir
-ahí: `resumenDias()` (días ganadores/perdedores) y `rachaActual()` en
-`src/lib/resultados.ts`, y `retiroMaximoSeguro()` en `cuentas.ts`.
+Después vienen el 7c (retiros con estado pedido/cobrado y ROI por firm),
+el 7d (import CSV y export) y el 7e (los baratos: modo privacidad, datos
+de ejemplo, objetivo mensual).
 
 La lista completa de huecos, priorizada y con esfuerzo estimado, está en
 `docs/LO-QUE-NOS-FALTA.md`.
@@ -302,11 +300,45 @@ operación a mano. Es un feature mucho más grande (tipo "Journal" que Lea
 tiene aparte en su menú) y no hace falta para validar la idea original de
 gastos/cuentas. Se deja para más adelante, no para el MVP.
 
-### HOME
-Pendiente de definir en detalle. La idea es que sea un resumen/vista
-rápida que combine lo más importante de Cuentas y Funding Manager
-(alertas, accesos directos), una vez que esas dos secciones estén
-cerradas.
+### HOME (definido e implementado 2026-08-22)
+La pantalla que ves al entrar: **una fila de números grandes y el
+calendario abajo**, que es como abren los dos competidores. No es una
+lista de alertas — abrir la app con una pared de advertencias es la forma
+más rápida de que dejes de mirarlas.
+
+De arriba a abajo: switch Trading/Neto + filtro de cuenta → cuatro números
+(hoy, este mes, acumulado, racha) → calendario mensual con el total de
+cada semana → hasta cuatro avisos → las cuentas en juego.
+
+**Los dos modos, que es la decisión de fondo:**
+
+- `trading` — lo que ganaste o perdiste **operando** (`resultados_diarios`).
+- `neto` — lo que quedó **en tu bolsillo**: retiros cobrados netos del
+  profit split, menos gastos. El mismo neto del Funding Manager.
+
+**Nunca se suman.** Un día verde de trading y el retiro que después hacés
+de esa misma ganancia son la misma plata contada dos veces. Por eso es un
+switch y no dos series del mismo gráfico. Si alguna vez aparece un número
+que mezcle los dos, está mal.
+
+**Por defecto entran solo las cuentas en juego**: el Home responde "¿cómo
+vengo hoy?". El desplegable tiene *Todas, incluidas las cerradas* para el
+neto real del negocio (si no, los costos de las cuentas quemadas
+desaparecen), y en modo neto la pantalla lo aclara sola.
+
+**"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y
+entre las 21 y las 24 de Buenos Aires eso ya es mañana. Los cálculos de
+`src/lib/home.ts` reciben `hoy` por parámetro y no leen `Date` adentro; la
+pantalla lo completa al montar, para que el HTML del servidor y el del
+cliente coincidan. Lo mismo con la grilla del calendario: todas las
+cuentas de fechas van por `Date.UTC`, porque en UTC−3 el día 1 se dibujaría
+en la casilla del 31 del mes anterior.
+
+**Un día vacío y un día en cero no son lo mismo**: el que no operaste queda
+apagado, el que cerraste plano se pinta como día trabajado con su $0.
+
+Archivos: `src/lib/home.ts`, `src/components/home/home-vista.tsx`,
+`src/components/home/calendario.tsx`, `src/app/(app)/page.tsx`.
 
 ## Modelo de datos (definido 2026-08-16)
 SQL completo (tablas + índices + RLS + trigger) en `supabase/schema.sql`,

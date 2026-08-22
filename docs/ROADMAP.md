@@ -4,20 +4,22 @@ Definido 2026-08-16, reordenado el mismo día para publicar temprano. Se
 sigue **paso a paso**, confirmando antes de ejecutar cada uno. Cada paso
 termina en algo que se pueda ver funcionando.
 
-## Dónde estamos (2026-08-20)
+## Dónde estamos (2026-08-22)
 
-Hechos los pasos **1 a 6** más los intermedios (4b, 4c, 5b, 5c, 6b): auth,
+Hechos los pasos **1 a 7** más los intermedios (4b, 4c, 5b, 5c, 6b): auth,
 deploy, layout, Cuentas con drawdown en tres modos, gastos y movimientos,
-resultados diarios con balance calculado, y el Funding Manager con
-gráficos.
+resultados diarios con balance calculado, el Funding Manager con gráficos
+y el **Home con el calendario mensual adentro** (el Paso 6c se resolvió
+dentro del 7, ver abajo).
 
-**Pendiente de acción manual**: correr
-`supabase/012_varias_entradas_por_dia.sql` en el SQL Editor de Supabase.
+La migración `012_varias_entradas_por_dia.sql` **ya se corrió** en Supabase
+(2026-08-22).
 
-**Próximo paso**: elegir entre el **Paso 6c (calendario mensual)** y el
-**Paso 7 (Home)** — los dos están descritos abajo. Los pasos 7b a 7e son
-nuevos, salidos del research de competencia del 2026-08-20
-(`docs/COMPETIDORES.md` y `docs/LO-QUE-NOS-FALTA.md`).
+**Próximo paso**: el **Paso 7b (reglas de la cuenta: daily loss limit,
+días mínimos, consistencia)**, que de todos los huecos detectados es el
+único que le puede costar plata a un usuario. Los pasos 7b a 7e salieron
+del research de competencia del 2026-08-20 (`docs/COMPETIDORES.md` y
+`docs/LO-QUE-NOS-FALTA.md`).
 
 ---
 
@@ -368,7 +370,7 @@ Salió del mismo trabajo, aunque toca la sección Cuentas.
 - **Logos de las prop firms: descartados** (2026-08-19). Razones en
   `CLAUDE.md`, sección *Explícitamente FUERA del MVP*.
 
-### Paso 6c — Calendario mensual ← **CANDIDATO A PRÓXIMO PASO**
+### Paso 6c — Calendario mensual ✅ HECHO (2026-08-22, dentro del Paso 7)
 Agregado el 2026-08-20 después del research de competencia
 (`docs/COMPETIDORES.md`). **Es el hueco más visible que tenemos**: lo
 tienen PropTracker y Trading Control, y nosotros tenemos los datos
@@ -384,28 +386,67 @@ celda muestra el neto del día y, si hubo más de una, cuántas fueron.
 
 **Resultado visible:** ves el mes entero de un vistazo.
 
-### Paso 7 — Home ← **EL OTRO CANDIDATO**
-Recién ahora tiene sentido definirla en detalle, porque ya sabemos qué
-datos existen. Idea: resumen de lo más importante + alertas (drawdown
-cerca del límite, cuenta lista para payout) + accesos rápidos.
+**Dónde terminó viviendo**: no es una sección aparte. El calendario es el
+cuerpo del **Home** — que es exactamente cómo lo tienen los dos
+competidores — así que los dos candidatos se hicieron de una sola vez.
+Componente: `src/components/home/calendario.tsx`.
 
-Material que ya está escrito y sin pantalla, candidato a vivir acá:
-- `resumenDias()` — días ganadores vs. perdedores (`src/lib/resultados.ts`).
-- `rachaActual()` — hoy solo se ve dentro del modal de curva.
-- `retiroMaximoSeguro()` — cuánto se puede retirar sin quedar en crítico
-  (`src/lib/cuentas.ts`). Se probó en la tarjeta y ensuciaba; como alerta
-  puntual tiene más sentido.
+### Paso 7 — Home ✅ HECHO (2026-08-22)
 
-Hay que definir antes de codear: qué alertas entran, si el Home es una
-lista de avisos o un tablero, y qué pasa cuando no hay ninguna cuenta
-cargada.
+La pantalla que ves al entrar. Se definió con el research a la vista: los
+dos competidores abren con **una fila de números grandes y el calendario
+abajo**, no con una lista de alertas. Abrir la app con una pared de
+advertencias es la forma más rápida de que dejes de mirarlas.
 
-**Dato del research (2026-08-20)**: los dos competidores abren con una
-fila de números grandes arriba (hoy, ayer, el mes, la racha) y el
-calendario o la curva abajo. **Ninguno de los dos es una lista de
-alertas**, que era una de las opciones que teníamos abiertas.
+Cómo quedó, de arriba a abajo:
 
-**Resultado visible:** la pantalla que ves al entrar.
+1. **Switch Trading / Neto** y **filtro de cuenta**. Los dos modos son dos
+   preguntas distintas y no se suman nunca (ver abajo).
+2. **Cuatro números**: hoy, este mes, acumulado y la racha (con los días en
+   verde y en rojo al pie).
+3. **Calendario mensual**, con el total de cada semana al costado y el del
+   mes arriba. Clic en un día → el detalle de ese día, cuenta por cuenta.
+4. **Avisos**, máximo cuatro y solo cuando aplican: cuenta en crítico,
+   cuenta que llegó al objetivo de retiro (con `retiroMaximoSeguro()`) y
+   evaluación que llegó al target sin marcar como pasada.
+5. **Cuentas en juego**: una fila por cuenta con balance, colchón y % al
+   objetivo.
+
+**Los dos modos** (la decisión de fondo de esta pantalla):
+
+- `trading` — lo que ganaste o perdiste **operando**, de
+  `resultados_diarios`.
+- `neto` — lo que quedó **en tu bolsillo**: retiros cobrados (netos del
+  profit split) menos gastos. Es el mismo neto del Funding Manager.
+
+No se suman nunca: un día verde de trading y el retiro que después hacés de
+esa misma ganancia son **la misma plata contada dos veces**. Por eso es un
+switch y no dos series del mismo gráfico.
+
+**Qué cuentas entran**: por defecto solo las que están **en juego** — el
+Home responde "¿cómo vengo hoy?", y una cuenta quemada hace tres meses no
+es parte de eso. El desplegable tiene *Todas, incluidas las cerradas* para
+el neto real del negocio, y en modo neto la pantalla lo aclara sola, porque
+si no los costos de las cuentas quemadas desaparecerían del cálculo.
+
+**Sin cuentas cargadas** no muestra un tablero en cero: muestra un cartel
+con el botón para crear la primera.
+
+**"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y
+entre las 21 y las 24 de Buenos Aires eso ya es mañana. Por eso `hoy` entra
+por parámetro a los cálculos y se completa al montar el componente (si se
+calculara en el servidor, además, el HTML del servidor y el del cliente no
+coincidirían).
+
+Se estrenaron tres funciones que estaban escritas y sin pantalla:
+`rachaActual()` (ahora partida en `rachaDeDias()`, que trabaja sobre días
+ya agrupados y la usan las dos pantallas), los días ganadores/perdedores y
+`retiroMaximoSeguro()`.
+
+Archivos: `src/lib/home.ts`, `src/components/home/home-vista.tsx`,
+`src/components/home/calendario.tsx`, `src/app/(app)/page.tsx`.
+
+**Resultado visible:** entrás a la app y ves cómo venís.
 
 ### Paso 7b — Reglas de la cuenta (daily loss limit y compañía)
 Sale del research. Hoy modelamos **una sola** forma de quemar una cuenta
