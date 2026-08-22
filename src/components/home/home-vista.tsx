@@ -14,6 +14,7 @@ import {
   salud,
   tieneRetiro,
   type Cuenta,
+  type Tipo,
 } from "@/lib/cuentas";
 import { TIPO_MOVIMIENTO_INFO, totales, type Movimiento } from "@/lib/movimientos";
 import type { Resultado } from "@/lib/resultados";
@@ -49,8 +50,21 @@ import {
  * advertencias es la forma más rápida de que dejes de mirarlas.
  */
 
-/** Qué cuentas entran en los números. */
-type Seleccion = "en_juego" | "todas" | (string & {});
+/**
+ * Qué cuentas entran en los números de trading.
+ *
+ * **Entran todas, incluidas las quemadas y las archivadas**: una cuenta se
+ * quema porque perdiste, y esas pérdidas son parte de cómo venís
+ * operando. Esconderlas sería quedarse solo con la parte linda del
+ * historial. Lo único que se filtra es el tipo de cuenta.
+ */
+type FiltroTipo = "todas" | Tipo;
+
+const FILTROS_TIPO: { valor: FiltroTipo; label: string }[] = [
+  { valor: "todas", label: "Todas" },
+  { valor: "fondeada", label: "Fondeadas" },
+  { valor: "challenge", label: "Evaluaciones" },
+];
 
 const VERDE = "text-emerald-400";
 const ROJO = "text-rose-400";
@@ -92,7 +106,7 @@ export function HomeVista({
   movimientos: Movimiento[];
 }) {
   const [modo, setModo] = useState<ModoHome>("trading");
-  const [seleccion, setSeleccion] = useState<Seleccion>("en_juego");
+  const [tipo, setTipo] = useState<FiltroTipo>("todas");
   // Vacío = todos. Solo aplica al flujo de caja.
   const [flujos, setFlujos] = useState<Flujo[]>([]);
   const [periodo, setPeriodo] = useState<Periodo>(PERIODO_DEFAULT);
@@ -117,53 +131,40 @@ export function HomeVista({
     [cuentas]
   );
 
-  /**
-   * Qué cuentas entran.
-   *
-   * **En flujo de caja son siempre todas**, y por eso el desplegable ni
-   * aparece: la plata que pusiste en una cuenta que después se quemó
-   * salió de tu bolsillo igual, y un flujo de caja que la esconde no es
-   * un flujo de caja. La elección solo tiene sentido en trading, donde la
-   * pregunta es "¿cómo vengo operando?" y una cuenta cerrada hace tres
-   * meses no es parte de eso.
-   */
-  const seleccionEfectiva: Seleccion = modo === "flujo" ? "todas" : seleccion;
-
-  const ids = useMemo(() => {
-    if (seleccionEfectiva === "todas") return new Set(cuentas.map((c) => c.id));
-    if (seleccionEfectiva === "en_juego") return new Set(vivas.map((c) => c.id));
-    return new Set([seleccionEfectiva]);
-  }, [seleccionEfectiva, cuentas, vivas]);
-
-  const unaSola =
-    seleccionEfectiva !== "todas" && seleccionEfectiva !== "en_juego";
+  /** Las cuentas cuyos días cuentan en trading: todas las del tipo elegido. */
+  const idsTrading = useMemo(
+    () =>
+      new Set(
+        cuentas.filter((c) => tipo === "todas" || c.tipo === tipo).map((c) => c.id)
+      ),
+    [cuentas, tipo]
+  );
 
   /**
-   * Los movimientos que pasan los dos filtros de arriba. Se calcula una
-   * vez y lo usan el calendario, el detalle del día y el ROI: si cada uno
-   * rehiciera el filtro, tarde o temprano uno quedaría con una regla
-   * distinta y los números dejarían de coincidir entre sí.
+   * Los movimientos del flujo de caja, con el filtro de chips aplicado.
    *
-   * Los gastos generales (data feed, plataforma) no son de ninguna cuenta:
-   * entran siempre, salvo que estés mirando una sola.
+   * **Acá entran siempre todas las cuentas**, y los gastos generales (data
+   * feed, plataforma) también: la plata que pusiste en una cuenta que
+   * después se quemó salió de tu bolsillo igual, y un flujo de caja que la
+   * esconde no es un flujo de caja.
+   *
+   * Se calcula una vez y lo usan el calendario, el detalle del día y el
+   * ROI: si cada uno rehiciera el filtro, tarde o temprano uno quedaría
+   * con una regla distinta y los números dejarían de coincidir entre sí.
    */
   const movsVisibles = useMemo(
-    () =>
-      filtrarFlujos(
-        movimientos.filter((m) =>
-          m.cuenta_id === null ? !unaSola : ids.has(m.cuenta_id)
-        ),
-        flujos
-      ),
-    [movimientos, ids, unaSola, flujos]
+    () => filtrarFlujos(movimientos, flujos),
+    [movimientos, flujos]
   );
 
   const dias = useMemo(() => {
     if (modo === "trading") {
-      return diasDeTrading(resultados.filter((r) => ids.has(r.cuenta_id)));
+      return diasDeTrading(
+        resultados.filter((r) => idsTrading.has(r.cuenta_id))
+      );
     }
     return diasDeFlujo(movsVisibles);
-  }, [modo, resultados, ids, movsVisibles]);
+  }, [modo, resultados, idsTrading, movsVisibles]);
 
   /** El tercer número: la ventana de tiempo la elige el usuario. */
   const acumulado = useMemo(() => {
@@ -204,7 +205,7 @@ export function HomeVista({
 
     if (modo === "trading") {
       return resultados
-        .filter((r) => r.fecha === diaAbierto && ids.has(r.cuenta_id))
+        .filter((r) => r.fecha === diaAbierto && idsTrading.has(r.cuenta_id))
         .map((r) => ({
           id: r.id,
           cuenta: nombres.get(r.cuenta_id) ?? "—",
@@ -217,13 +218,11 @@ export function HomeVista({
       .filter((m) => m.fecha === diaAbierto)
       .map((m) => ({
         id: m.id,
-        cuenta: m.cuenta_id
-          ? (nombres.get(m.cuenta_id) ?? "—")
-          : "General",
+        cuenta: m.cuenta_id ? (nombres.get(m.cuenta_id) ?? "—") : "General",
         monto: m.tipo === "retiro" ? m.monto : -m.monto,
         detalle: m.detalle ?? TIPO_MOVIMIENTO_INFO[m.tipo].label,
       }));
-  }, [diaAbierto, modo, resultados, movsVisibles, ids, nombres]);
+  }, [diaAbierto, modo, resultados, movsVisibles, idsTrading, nombres]);
 
   /* ---------- Avisos ---------- */
 
@@ -315,33 +314,35 @@ export function HomeVista({
           ))}
         </div>
 
+        {/* En trading lo único que se elige es el tipo de cuenta. */}
         {modo === "trading" && (
-        <select
-          value={seleccion}
-          onChange={(e) => {
-            setSeleccion(e.target.value);
-            setDiaAbierto(null);
-          }}
-          className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-300 outline-none focus:border-neutral-700"
-        >
-          <option value="en_juego">Todas las cuentas en juego</option>
-          <option value="todas">Todas, incluidas las cerradas</option>
-          <optgroup label="Una sola">
-            {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre} · {c.firm}
-                {enJuego(c.estado) ? "" : " (cerrada)"}
-              </option>
+          <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
+            {FILTROS_TIPO.map((f) => (
+              <button
+                key={f.valor}
+                onClick={() => {
+                  setTipo(f.valor);
+                  setDiaAbierto(null);
+                }}
+                className={`rounded-md px-3 py-1.5 text-sm transition ${
+                  tipo === f.valor
+                    ? "bg-neutral-800 text-neutral-100"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                {f.label}
+              </button>
             ))}
-          </optgroup>
-        </select>
+          </div>
         )}
       </div>
 
       <div className="-mt-3 space-y-3">
         <p className="text-xs text-neutral-500">
           {infoModo.ayuda}
-          {modo === "flujo" && " · Entran todas tus cuentas, también las cerradas."}
+          {" · Entran todas tus cuentas, también las quemadas"}
+          {modo === "trading" && ": una cuenta se quema porque perdiste, y esa pérdida es parte de cómo venís operando"}
+          .
         </p>
 
         {/* Qué movimientos entran. Ninguno marcado = todos. */}

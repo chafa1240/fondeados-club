@@ -347,15 +347,26 @@ de esa misma ganancia son la misma plata contada dos veces. Por eso es un
 switch y no dos series del mismo gráfico. Si alguna vez aparece un número
 que mezcle los dos, está mal.
 
-**Qué cuentas entran, y por qué el filtro solo existe en trading.** En
-trading el desplegable arranca en las cuentas **en juego** (el Home
-responde "¿cómo vengo hoy?", y una cuenta quemada hace tres meses no es
-parte de eso) y permite ver una sola o incluir las cerradas. En **flujo de
-caja el desplegable no aparece: entran siempre todas**, porque la plata
-que pusiste en una cuenta que después se quemó salió de tu bolsillo igual,
-y un flujo de caja que la esconde no es un flujo de caja. Con eso el
-acumulado "desde siempre" y el ROI dan exactamente los mismos números que
-el Funding Manager (verificado: $1.040 y +26,6%).
+**En los dos modos entran SIEMPRE todas las cuentas**, quemadas y
+archivadas incluidas. Cada modo tiene su razón y las dos apuntan al mismo
+lado:
+
+- En **trading**, una cuenta se quema porque perdiste, y esa pérdida es
+  parte de cómo venís operando. Dejarla afuera sería quedarse solo con la
+  parte linda del historial.
+- En **flujo de caja**, la plata que pusiste en una cuenta que después se
+  quemó salió de tu bolsillo igual. Un flujo de caja que la esconde no es
+  un flujo de caja. Por eso ahí el acumulado "desde siempre" y el ROI dan
+  exactamente los mismos números que el Funding Manager (verificado:
+  $1.040 y +26,6%).
+
+Lo único que se filtra en trading es **el tipo de cuenta**: Todas /
+Fondeadas / Evaluaciones. No hay selector de cuenta individual — para
+mirar una sola cuenta está su tarjeta en la sección Cuentas, con su curva.
+Los montos de los dos tipos suman el total (verificado: −$901 de fondeadas
+más −$2.546 de evaluaciones dan los −$3.447 de "Todas"). **Los días no
+suman**, y está bien: un día en que operaste una fondeada y una evaluación
+es un día en cada subconjunto y un solo día en "Todas".
 
 **"Hoy" lo decide el navegador**, no el servidor: Vercel corre en UTC y
 entre las 21 y las 24 de Buenos Aires eso ya es mañana. Los cálculos de
