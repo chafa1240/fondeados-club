@@ -30,7 +30,7 @@ export function Nav({ email }: { email?: string }) {
             onClick={() => setAbierto(false)}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
               activa
-                ? "bg-neutral-800 font-medium text-white"
+                ? "bg-neutral-800 font-medium text-neutral-100"
                 : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
             }`}
           >

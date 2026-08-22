@@ -114,7 +114,7 @@ export function GraficoCurva({ puntos }: { puntos: Punto[] }) {
               y1={y(v)}
               x2={ANCHO - PAD.derecha}
               y2={y(v)}
-              stroke="#262626"
+              stroke="rgb(var(--grafico-grilla))"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -123,7 +123,7 @@ export function GraficoCurva({ puntos }: { puntos: Punto[] }) {
               y={y(v) + 4}
               textAnchor="end"
               fontSize="10"
-              fill="#737373"
+              fill="rgb(var(--grafico-texto))"
             >
               {plata(v)}
             </text>
@@ -155,7 +155,7 @@ export function GraficoCurva({ puntos }: { puntos: Punto[] }) {
               y1={PAD.arriba}
               x2={x(activo)}
               y2={ALTO - PAD.abajo}
-              stroke="#525252"
+              stroke="rgb(var(--grafico-eje))"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -170,7 +170,7 @@ export function GraficoCurva({ puntos }: { puntos: Punto[] }) {
           x={PAD.izquierda}
           y={ALTO - 6}
           fontSize="10"
-          fill="#737373"
+          fill="rgb(var(--grafico-texto))"
         >
           {fechaCorta(puntos[0].fecha)}
         </text>
@@ -179,7 +179,7 @@ export function GraficoCurva({ puntos }: { puntos: Punto[] }) {
           y={ALTO - 6}
           textAnchor="end"
           fontSize="10"
-          fill="#737373"
+          fill="rgb(var(--grafico-texto))"
         >
           {fechaCorta(puntos[puntos.length - 1].fecha)}
         </text>

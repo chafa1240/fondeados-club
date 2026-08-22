@@ -340,6 +340,59 @@ apagado, el que cerraste plano se pinta como día trabajado con su $0.
 Archivos: `src/lib/home.ts`, `src/components/home/home-vista.tsx`,
 `src/components/home/calendario.tsx`, `src/app/(app)/page.tsx`.
 
+## Tono claro y oscuro (definido 2026-08-22)
+
+La app abre con **el tono que tenga el sistema del usuario** y hay un
+botón en el header que cicla Sistema → Claro → Oscuro. La elección se
+guarda en `localStorage` y se aplica escribiendo `data-tema` en el
+`<html>`.
+
+**No se usan las variantes `dark:` de Tailwind.** La app tiene unas 600
+clases de color repartidas en 25 archivos: cada una habría necesitado su
+par `dark:`, y cada componente nuevo arrastraría el doble de clases para
+siempre. En vez de eso se **redefinió la paleta** en
+`tailwind.config.ts`: `neutral` y los tonos 300/400 de los colores apuntan
+a variables CSS. `bg-neutral-900` se sigue escribiendo igual en todos
+lados y es la variable la que decide si eso es casi negro o blanco. **Los
+componentes no se tocaron.**
+
+Cuatro cosas que hay que respetar al agregar pantallas:
+
+1. **Escribir las clases de siempre** (`bg-neutral-900`, `text-neutral-400`).
+   Ya son sensibles al tono. Un color nuevo fuera de la paleta —un hex
+   suelto, un `bg-white`— queda fijo en los dos tonos y rompe uno.
+2. **El `<alpha-value>` de la config es lo que mantiene vivos los
+   modificadores de opacidad**: sin él `bg-emerald-500/10` dejaría de
+   funcionar.
+3. **`data-tema` solo vale `claro` u `oscuro`.** "Sistema" lo resuelve
+   `SCRIPT_TEMA` (`src/lib/tema.ts`) antes de pintar; si lo resolviera el
+   CSS habría que repetir la paleta entera dentro de un `@media`, y una
+   paleta duplicada es una paleta que tarde o temprano queda a medio
+   actualizar.
+4. **El claro no es el oscuro aclarado, es la escala dada vuelta**: el
+   fondo pasa a casi blanco y los paneles a blanco puro, así se siguen
+   despegando del fondo. Los tonos 300/400 de los colores se oscurecen
+   (un `emerald-400` se lee bien sobre negro y se pierde sobre blanco);
+   los 500/600, que son fondos de botón y bordes con opacidad, quedan
+   iguales en los dos.
+
+Los grises de los gráficos también son variables (`--grafico-grilla`,
+`--grafico-eje`, `--grafico-texto`, `--grafico-barra`): iban como hex
+fijos en atributos del SVG y en claro quedaban negros sobre blanco.
+
+El script del `layout` pinta el tono **antes del primer frame**. Sin eso
+la app arranca en oscuro y pega un flash blanco al hidratarse, que es
+justo lo que hace que un modo claro se sienta roto. Por eso el `<html>`
+lleva `suppressHydrationWarning`: el atributo lo escribe el script antes
+de que React mire, y es a propósito.
+
+⚠️ **Tocar `tailwind.config.ts` obliga a reiniciar `npm run dev`**:
+Tailwind lee la config una sola vez, al arrancar. Los cambios de
+`globals.css` sí se toman en caliente.
+
+Archivos: `tailwind.config.ts`, `src/app/globals.css`, `src/lib/tema.ts`,
+`src/components/selector-tema.tsx`, `src/app/layout.tsx`.
+
 ## Modelo de datos (definido 2026-08-16)
 SQL completo (tablas + índices + RLS + trigger) en `supabase/schema.sql`,
 corrido con éxito en el SQL Editor del proyecto `fondeados-club`

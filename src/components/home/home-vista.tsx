@@ -442,13 +442,16 @@ export function HomeVista({
 
                   <span className="flex items-center gap-4 tabular-nums">
                     <span className="text-neutral-300">{plata(c.balance_actual)}</span>
+                    {/* Ancho fijo para que las columnas queden alineadas, y
+                        `nowrap` para que "de colchón" no se parta en dos
+                        líneas y se coma la altura de la fila. */}
                     <span
-                      className="w-24 text-right text-xs text-neutral-500"
+                      className="w-32 whitespace-nowrap text-right text-xs text-neutral-500"
                       title="Colchón hasta el piso del drawdown"
                     >
                       {col ? `${plata(col.monto)} de colchón` : "sin drawdown"}
                     </span>
-                    <span className="w-20 text-right text-xs text-neutral-500">
+                    <span className="w-24 whitespace-nowrap text-right text-xs text-neutral-500">
                       {a ? `${Math.round(a.pct)}% ${a.etiqueta}` : "—"}
                     </span>
                   </span>

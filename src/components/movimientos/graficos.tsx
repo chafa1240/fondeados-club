@@ -144,7 +144,7 @@ export function GraficoAcumulado({
               y1={y(v)}
               x2={ANCHO - PAD.derecha}
               y2={y(v)}
-              stroke="#262626"
+              stroke="rgb(var(--grafico-grilla))"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -153,7 +153,7 @@ export function GraficoAcumulado({
               y={y(v) + 4}
               textAnchor="end"
               fontSize="10"
-              fill="#737373"
+              fill="rgb(var(--grafico-texto))"
             >
               {plata(v)}
             </text>
@@ -167,7 +167,7 @@ export function GraficoAcumulado({
             y1={y(0)}
             x2={ANCHO - PAD.derecha}
             y2={y(0)}
-            stroke="#525252"
+            stroke="rgb(var(--grafico-eje))"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
@@ -207,13 +207,13 @@ export function GraficoAcumulado({
             y1={PAD.arriba}
             x2={x(activo)}
             y2={ALTO - PAD.abajo}
-            stroke="#525252"
+            stroke="rgb(var(--grafico-eje))"
             strokeWidth="1"
             vectorEffect="non-scaling-stroke"
           />
         )}
 
-        <text x={PAD.izquierda} y={ALTO - 6} fontSize="10" fill="#737373">
+        <text x={PAD.izquierda} y={ALTO - 6} fontSize="10" fill="rgb(var(--grafico-texto))">
           {fechaCorta(puntos[0].fecha)}
         </text>
         <text
@@ -221,7 +221,7 @@ export function GraficoAcumulado({
           y={ALTO - 6}
           textAnchor="end"
           fontSize="10"
-          fill="#737373"
+          fill="rgb(var(--grafico-texto))"
         >
           {fechaCorta(puntos[puntos.length - 1].fecha)}
         </text>
@@ -349,7 +349,7 @@ export function GraficoFirms({ datos }: { datos: ResumenFirm[] }) {
                 {[
                   { n: f.pasadas, color: ENTRA, label: "pasadas" },
                   { n: f.quemadas, color: SALE, label: "quemadas" },
-                  { n: f.enJuego, color: "#404040", label: "en juego" },
+                  { n: f.enJuego, color: "rgb(var(--grafico-barra))", label: "en juego" },
                 ]
                   .filter((s) => s.n > 0)
                   .map((s) => (

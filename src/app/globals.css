@@ -1,3 +1,97 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * Los dos tonos.
+ *
+ * `:root` trae el oscuro, que es el tono en el que está pensada la app, y
+ * `[data-tema="claro"]` lo da vuelta. **Solo hay dos estados en el CSS**:
+ * la opción "Sistema" la resuelve el script del `layout` antes de pintar
+ * (lee `prefers-color-scheme` y escribe el atributo). Si no, habría que
+ * repetir la paleta entera dentro de un `@media`, y una paleta duplicada
+ * es una paleta que tarde o temprano queda a medio actualizar.
+ *
+ * Los valores van como "R G B" sueltos, sin `rgb()`, porque Tailwind les
+ * mete la opacidad adentro: `bg-neutral-900/40` termina resolviendo a
+ * `rgb(var(--n900) / 0.4)`.
+ */
+
+:root {
+  --n50: 250 250 250;
+  --n100: 245 245 245;
+  --n200: 229 229 229;
+  --n300: 212 212 212;
+  --n400: 163 163 163;
+  --n500: 115 115 115;
+  --n600: 82 82 82;
+  --n700: 64 64 64;
+  --n800: 38 38 38;
+  --n900: 23 23 23;
+  --n950: 10 10 10;
+
+  --emerald300: 110 231 183;
+  --emerald400: 52 211 153;
+  --emerald900: 6 78 59;
+  --rose300: 253 164 175;
+  --rose400: 251 113 133;
+  --red300: 252 165 165;
+  --red900: 127 29 29;
+  --red950: 69 10 10;
+  --amber400: 251 191 36;
+  --amber500: 245 158 11;
+  --sky400: 56 189 248;
+
+  /* Los grises de los gráficos, que van como atributos del SVG. */
+  --grafico-grilla: 38 38 38;
+  --grafico-eje: 82 82 82;
+  --grafico-texto: 115 115 115;
+  --grafico-barra: 64 64 64;
+
+  color-scheme: dark;
+}
+
+/**
+ * El claro no es "el oscuro aclarado": es la escala dada vuelta. El fondo
+ * pasa a casi blanco y los paneles a blanco puro, así siguen despegándose
+ * del fondo igual que en oscuro.
+ *
+ * Los tonos 300 y 400 de los colores se oscurecen: un emerald-400 se lee
+ * bien sobre negro y se pierde sobre blanco. Los 500 y 600, que son
+ * fondos de botón y bordes con opacidad, quedan iguales en los dos tonos.
+ */
+:root[data-tema="claro"] {
+  --n50: 10 10 10;
+  --n100: 10 10 10;
+  --n200: 23 23 23;
+  --n300: 38 38 38;
+  --n400: 82 82 82;
+  --n500: 115 115 115;
+  /* Un poco más oscuro que el 163 que sería el espejo exacto del 600:
+     sobre blanco ese gris se cae, y este texto ya es el más apagado de
+     la app. Así los dos tonos quedan con el mismo contraste. */
+  --n600: 138 138 138;
+  --n700: 212 212 212;
+  --n800: 229 229 229;
+  --n900: 255 255 255;
+  --n950: 250 250 250;
+
+  --emerald300: 4 120 87;
+  --emerald400: 5 150 105;
+  --emerald900: 167 243 208;
+  --rose300: 190 18 60;
+  --rose400: 225 29 72;
+  --red300: 185 28 28;
+  --red900: 254 202 202;
+  --red950: 254 226 226;
+  --amber400: 217 119 6;
+  --amber500: 180 83 9;
+  --sky400: 2 132 199;
+
+  --grafico-grilla: 229 229 229;
+  --grafico-eje: 163 163 163;
+  --grafico-texto: 115 115 115;
+  --grafico-barra: 212 212 212;
+
+  color-scheme: light;
+}

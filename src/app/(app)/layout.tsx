@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/login/actions";
 import { Nav } from "@/components/nav";
 import { AdSlot } from "@/components/ad-slot";
+import { SelectorTema } from "@/components/selector-tema";
 
 export default async function AppLayout({
   children,
@@ -21,6 +22,7 @@ export default async function AppLayout({
         {/* Header */}
         <header className="hidden items-center justify-end gap-4 border-b border-neutral-800 px-6 py-3 md:flex">
           <span className="text-sm text-neutral-400">{user?.email}</span>
+          <SelectorTema />
           <form action={logout}>
             <button
               type="submit"
@@ -45,8 +47,9 @@ export default async function AppLayout({
         </div>
 
         {/* Salir en celular */}
-        <div className="border-t border-neutral-800 p-4 md:hidden">
-          <form action={logout}>
+        <div className="flex items-center gap-3 border-t border-neutral-800 p-4 md:hidden">
+          <SelectorTema className="shrink-0" />
+          <form action={logout} className="flex-1">
             <button
               type="submit"
               className="w-full rounded-lg border border-neutral-700 px-3 py-2 text-sm transition hover:bg-neutral-800"
