@@ -462,6 +462,16 @@ métricas: es **el estado escrito / sin escribir**. Ver de un vistazo qué
 días escribiste es lo que hace que vuelvas a escribir; eso es gratis y es
 el corazón de la pantalla.
 
+**La puerta desde Cuentas.** El modal de "Resultados del día" tiene abajo
+a la izquierda un botón **"Escribir el día"** que lleva a
+`/journal?dia=<fecha>` con ese día ya abierto. Es el momento exacto en que
+uno se acuerda de lo que pasó: acabás de cargar el número. El botón
+**aparece recién cuando el día ya tiene alguna entrada cargada** —
+escribir sobre un día vacío no tiene sentido, y un botón que aparece justo
+cuando sirve enseña solo para qué está. Al cerrar el modal, el `?dia=` se
+saca de la URL con `router.replace`: si quedara, recargar te reabriría un
+día que ya cerraste.
+
 **Sección aparte, con la puerta en el Home.** El Home es para mirar y se
 abre diez veces por día; el journal es para sentarse a escribir, una vez
 al cierre. Son dos gestos con ritmos distintos y juntarlos empeora los

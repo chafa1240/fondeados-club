@@ -7,7 +7,13 @@ import type { Resultado } from "@/lib/resultados";
 // Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
 export const dynamic = "force-dynamic";
 
-export default async function JournalPage() {
+export default async function JournalPage({
+  searchParams,
+}: {
+  /** `?dia=2026-08-21` abre ese día al entrar. Lo usa el botón "Escribir
+      el día" del modal de resultados, para no obligarte a buscarlo. */
+  searchParams: { dia?: string };
+}) {
   const supabase = createClient();
 
   const [{ data: dias, error }, { data: notas, error: errorNotas }, { data: cuentas }] =
@@ -67,6 +73,7 @@ export default async function JournalPage() {
           resultados={(dias ?? []) as Resultado[]}
           notas={(notas ?? []) as NotaDia[]}
           cuentas={lista}
+          diaInicial={searchParams.dia ?? null}
         />
       )}
     </>

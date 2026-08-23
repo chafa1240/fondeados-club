@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
@@ -40,6 +41,15 @@ function Boton({ editando }: { editando: boolean }) {
           ? "Guardar cambios"
           : "Agregar al día"}
     </button>
+  );
+}
+
+function JournalIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
   );
 }
 
@@ -412,7 +422,21 @@ export function ModalResultado({
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+            {/* Aparece recién cuando el día ya tiene algo cargado: escribir
+                sobre un día vacío no tiene sentido, y un botón que aparece
+                justo cuando sirve enseña solo para qué está. */}
+            {delDia.length > 0 && (
+              <Link
+                href={`/journal?dia=${fecha}`}
+                title="Ir al journal a escribir qué pasó ese día"
+                className="mr-auto flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
+              >
+                <JournalIcon />
+                Escribir el día
+              </Link>
+            )}
+
             {editando ? (
               <button
                 type="button"

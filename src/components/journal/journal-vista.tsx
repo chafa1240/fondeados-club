@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ModalDia } from "./modal-dia";
 import { Calendario } from "@/components/home/calendario";
 import { Estadisticas } from "./estadisticas";
@@ -58,14 +59,18 @@ export function JournalVista({
   resultados,
   notas,
   cuentas,
+  diaInicial = null,
 }: {
   resultados: Resultado[];
   notas: NotaDia[];
   cuentas: CuentaJournal[];
+  /** Día a abrir al entrar, del `?dia=` de la URL. */
+  diaInicial?: string | null;
 }) {
+  const router = useRouter();
   const [tipo, setTipo] = useState<Tipo>("fondeada");
   const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [abierto, setAbierto] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<string | null>(diaInicial);
 
   // "Hoy" lo decide el navegador: el servidor corre en UTC y de noche eso
   // ya es mañana. Arranca en null para que el HTML del servidor y el del
@@ -76,8 +81,11 @@ export function JournalVista({
   useEffect(() => {
     const d = hoyLocal();
     setHoy(d);
-    setMes((m) => m ?? mesDeFecha(d));
-  }, []);
+    // Si venís de "Escribir el día", el calendario tiene que abrir en el
+    // mes de ese día y no en el de hoy: si no, cerrás el modal y estás
+    // mirando otro mes sin entender por qué.
+    setMes((m) => m ?? mesDeFecha(diaInicial ?? d));
+  }, [diaInicial]);
 
   const nombres = useMemo(
     () => Object.fromEntries(cuentas.map((c) => [c.id, c.nombre])),
@@ -297,7 +305,12 @@ export function JournalVista({
           detalle={detalle}
           anterior={anterior}
           siguiente={siguiente}
-          onCerrar={() => setAbierto(null)}
+          onCerrar={() => {
+            setAbierto(null);
+            // Saca el `?dia=` de la URL: si queda, recargar la página te
+            // vuelve a abrir un día que ya cerraste.
+            if (diaInicial) router.replace("/journal");
+          }}
           onIr={(f) => setAbierto(f)}
         />
       )}
