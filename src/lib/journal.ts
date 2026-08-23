@@ -12,7 +12,7 @@
  * justamente uno de los que vale la pena escribir.
  */
 
-import type { Tipo } from "./cuentas";
+import type { Estado, ModoDrawdown, Tipo } from "./cuentas";
 import type { DiaHome } from "./home";
 
 /** Lo que hace falta de cada cuenta: cómo se llama y de qué tipo es. */
@@ -20,6 +20,9 @@ export type CuentaJournal = {
   id: string;
   nombre: string;
   tipo: Tipo;
+  /** Para saber si al cargar un resultado hay que pedir el máximo del día. */
+  modo_drawdown: ModoDrawdown;
+  estado: Estado;
 };
 
 /** Una fila de `journal_dias`. */

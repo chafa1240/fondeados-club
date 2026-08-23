@@ -60,15 +60,18 @@ export function JournalVista({
   notas,
   cuentas,
   diaInicial = null,
+  tipoInicial = null,
 }: {
   resultados: Resultado[];
   notas: NotaDia[];
   cuentas: CuentaJournal[];
   /** Día a abrir al entrar, del `?dia=` de la URL. */
   diaInicial?: string | null;
+  /** Con qué filtro abrir, del `?tipo=` de la URL. */
+  tipoInicial?: Tipo | null;
 }) {
   const router = useRouter();
-  const [tipo, setTipo] = useState<Tipo>("fondeada");
+  const [tipo, setTipo] = useState<Tipo>(tipoInicial ?? "fondeada");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [abierto, setAbierto] = useState<string | null>(diaInicial);
 
@@ -312,6 +315,8 @@ export function JournalVista({
             if (diaInicial) router.replace("/journal");
           }}
           onIr={(f) => setAbierto(f)}
+          cuentas={cuentas}
+          tipo={tipo}
         />
       )}
     </div>

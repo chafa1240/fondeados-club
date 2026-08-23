@@ -228,7 +228,10 @@ export function ModalResultado({
     ) {
       return;
     }
-    router.push(`/journal?dia=${fecha}`);
+    // El tipo viaja con el día: si venís de una fondeada, el journal
+    // abre en fondeadas. Llegar a una pantalla filtrada por otra cosa te
+    // hace dudar de si el número que ves es el de tu cuenta.
+    router.push(`/journal?dia=${fecha}&tipo=${cuenta.tipo}`);
   }
 
   // Cambiar de día siempre arranca de cero: seguir editando una entrada de

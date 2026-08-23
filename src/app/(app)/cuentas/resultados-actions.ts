@@ -94,6 +94,10 @@ export async function guardarResultado(
 
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
+  // El journal y el Home también listan días: sin esto, cargar un
+  // resultado desde el journal no se ve hasta recargar a mano.
+  revalidatePath("/journal");
+  revalidatePath("/");
   return { ok: id ? "Entrada corregida." : "Entrada agregada." };
 }
 
@@ -161,6 +165,10 @@ export async function eliminarResultado(id: string) {
 
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
+  // El journal y el Home también listan días: sin esto, cargar un
+  // resultado desde el journal no se ve hasta recargar a mano.
+  revalidatePath("/journal");
+  revalidatePath("/");
 }
 
 function mensajeDeError(mensaje: string) {

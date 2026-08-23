@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarNota, type EstadoJournal } from "@/app/(app)/journal/actions";
-import { fechaCorta, plata } from "@/lib/cuentas";
-import type { DiaJournal } from "@/lib/journal";
+import {
+  guardarResultado,
+  type EstadoForm,
+} from "@/app/(app)/cuentas/resultados-actions";
+import { enJuego, fechaCorta, plata, trailea, type Tipo } from "@/lib/cuentas";
+import type { CuentaJournal, DiaJournal } from "@/lib/journal";
 
 /**
  * El día abierto: lo que pasó arriba, lo que escribís abajo.
@@ -15,6 +19,158 @@ import type { DiaJournal } from "@/lib/journal";
  * apretar una flecha es la forma más rápida de que alguien no vuelva a
  * escribir nunca más.
  */
+
+function Agregar() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-lg border border-neutral-700 px-3 py-2 text-sm transition hover:bg-neutral-800 disabled:opacity-60"
+    >
+      {pending ? "Agregando…" : "Agregar"}
+    </button>
+  );
+}
+
+/**
+ * Cargar un resultado sin salir del journal.
+ *
+ * Es la misma action que usa la sección Cuentas — no una copia: el alta de
+ * un día toca la semilla, el máximo del día y el balance calculado, y dos
+ * caminos distintos para escribir lo mismo terminan divergiendo.
+ */
+function AltaResultado({
+  fecha,
+  cuentas,
+  tipo,
+}: {
+  fecha: string;
+  cuentas: CuentaJournal[];
+  tipo: Tipo;
+}) {
+  const [estado, accion] = useFormState<EstadoForm, FormData>(guardarResultado, {});
+  const [cuentaId, setCuentaId] = useState("");
+  const [monto, setMonto] = useState("");
+  const [maximo, setMaximo] = useState("");
+
+  // Cambiar de día limpia el formulario: cargar un resultado en la fecha
+  // equivocada es de los errores más caros y más fáciles de cometer.
+  useEffect(() => {
+    setMonto("");
+    setMaximo("");
+  }, [fecha]);
+
+  useEffect(() => {
+    if (estado.ok) {
+      setMonto("");
+      setMaximo("");
+    }
+  }, [estado]);
+
+  /**
+   * Solo las cuentas **en juego**.
+   *
+   * Con el historial completo el desplegable traía 128 cuentas, casi todas
+   * quemadas: elegir ahí es peor que no tener el atajo. Para cargarle un
+   * día a una cuenta cerrada está su tarjeta en Cuentas, que además es
+   * donde uno va cuando quiere corregir historia vieja.
+   */
+  const disponibles = cuentas.filter((c) => enJuego(c.estado));
+
+  const elegida = disponibles.find((c) => c.id === cuentaId);
+  const pideMaximo = elegida !== undefined && trailea(elegida.modo_drawdown);
+
+  // Primero las del tipo que estás mirando: nueve de cada diez veces es
+  // una de esas.
+  const grupos: { label: string; cuentas: CuentaJournal[] }[] = [
+    {
+      label: tipo === "fondeada" ? "Fondeadas" : "Evaluaciones",
+      cuentas: disponibles.filter((c) => c.tipo === tipo),
+    },
+    {
+      label: tipo === "fondeada" ? "Evaluaciones" : "Fondeadas",
+      cuentas: disponibles.filter((c) => c.tipo !== tipo),
+    },
+  ].filter((g) => g.cuentas.length > 0);
+
+  if (disponibles.length === 0) return null;
+
+  return (
+    <form action={accion} className="border-b border-neutral-800 p-4">
+      <input type="hidden" name="fecha" value={fecha} />
+
+      <p className="text-sm font-medium">Cargar un resultado</p>
+      <p className="mt-0.5 text-xs text-neutral-500">
+        Se guarda en la cuenta que elijas, igual que desde la sección Cuentas.
+        Solo aparecen las cuentas en juego.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="min-w-[12rem] flex-1">
+          <span className="sr-only">Cuenta</span>
+          <select
+            name="cuenta_id"
+            value={cuentaId}
+            onChange={(e) => setCuentaId(e.target.value)}
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+          >
+            <option value="">Elegí la cuenta…</option>
+            {grupos.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.cuentas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+
+        <label className="w-32">
+          <span className="sr-only">Resultado en dólares</span>
+          <input
+            name="monto"
+            inputMode="decimal"
+            placeholder="USD"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+          />
+        </label>
+
+        {pideMaximo && (
+          <label className="w-36">
+            <span className="sr-only">Máximo del día</span>
+            <input
+              name="pico_dia"
+              inputMode="decimal"
+              placeholder="Máximo del día"
+              value={maximo}
+              onChange={(e) => setMaximo(e.target.value)}
+              title="Cuánto llegaste a tener arriba dentro del día, desde que abrió la jornada. Vacío = se usa el cierre."
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+            />
+          </label>
+        )}
+
+        <Agregar />
+      </div>
+
+      <p className="mt-2 text-xs text-neutral-500">
+        {estado.error ? (
+          <span className="text-rose-400">{estado.error}</span>
+        ) : estado.ok ? (
+          <span className="text-emerald-400">{estado.ok}</span>
+        ) : (
+          "Negativo si perdiste. Podés cargar varias entradas en el mismo día."
+        )}
+      </p>
+    </form>
+  );
+}
 
 function Guardar() {
   const { pending } = useFormStatus();
@@ -37,6 +193,8 @@ export function ModalDia({
   siguiente,
   onCerrar,
   onIr,
+  cuentas,
+  tipo,
 }: {
   dia: DiaJournal;
   /** Lo que se cargó ese día, cuenta por cuenta. */
@@ -45,6 +203,9 @@ export function ModalDia({
   siguiente: string | null;
   onCerrar: () => void;
   onIr: (fecha: string) => void;
+  cuentas: CuentaJournal[];
+  /** El filtro que está puesto, para ordenar el desplegable de cuentas. */
+  tipo: Tipo;
 }) {
   const [estado, accion] = useFormState<EstadoJournal, FormData>(guardarNota, {});
   const [texto, setTexto] = useState(dia.nota?.notas ?? "");
@@ -183,6 +344,9 @@ export function ModalDia({
             </ul>
           </div>
         )}
+
+        {/* Cargar un resultado sin salir de acá */}
+        <AltaResultado fecha={dia.fecha} cuentas={cuentas} tipo={tipo} />
 
         {/* Lo que escribís */}
         <form action={accion} className="p-4">

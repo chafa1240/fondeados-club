@@ -12,7 +12,7 @@ export default async function JournalPage({
 }: {
   /** `?dia=2026-08-21` abre ese día al entrar. Lo usa el botón "Escribir
       el día" del modal de resultados, para no obligarte a buscarlo. */
-  searchParams: { dia?: string };
+  searchParams: { dia?: string; tipo?: string };
 }) {
   const supabase = createClient();
 
@@ -26,7 +26,12 @@ export default async function JournalPage({
         .from("journal_dias")
         .select("id, fecha, notas, updated_at")
         .order("fecha", { ascending: false }),
-      supabase.from("cuentas_fondeo").select("id, nombre, tipo"),
+      // `modo_drawdown` hace falta para saber si al cargar un resultado
+      // desde el journal hay que pedir el máximo del día.
+      supabase
+        .from("cuentas_fondeo")
+        .select("id, nombre, tipo, modo_drawdown, estado")
+        .order("created_at", { ascending: false }),
     ]);
 
   const lista = (cuentas ?? []) as CuentaJournal[];
@@ -74,6 +79,11 @@ export default async function JournalPage({
           notas={(notas ?? []) as NotaDia[]}
           cuentas={lista}
           diaInicial={searchParams.dia ?? null}
+          tipoInicial={
+            searchParams.tipo === "fondeada" || searchParams.tipo === "challenge"
+              ? searchParams.tipo
+              : null
+          }
         />
       )}
     </>

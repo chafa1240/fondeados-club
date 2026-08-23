@@ -478,6 +478,23 @@ escribe nunca. Mientras la invitación está, el botón del pie se esconde:
 dos botones iguales a la vez no dan el doble de ganas de escribir, dan la
 mitad.
 
+**El tipo viaja con el día**: `?dia=<fecha>&tipo=<fondeada|challenge>`. Si
+venís de una fondeada, el journal abre filtrado en fondeadas; si venís de
+una evaluación, en evaluaciones. Llegar a una pantalla filtrada por otra
+cosa te hace dudar de si el número que estás viendo es el de tu cuenta.
+
+**Y desde el journal se puede cargar el resultado del día**, eligiendo la
+cuenta ahí mismo: el modal tiene arriba un alta con desplegable de cuenta,
+monto y —solo si esa cuenta tiene drawdown que trailea— el máximo del día.
+Usa **la misma action** que la sección Cuentas (`guardarResultado`), no
+una copia: el alta toca la semilla, el máximo del día y el balance
+calculado, y dos caminos distintos para escribir lo mismo terminan
+divergiendo. El desplegable ofrece **solo las cuentas en juego** — con el
+historial completo traía 128, casi todas quemadas, y elegir ahí es peor
+que no tener el atajo; para cargarle un día a una cuenta cerrada está su
+tarjeta en Cuentas. Por eso `guardarResultado` y `eliminarResultado`
+revalidan también `/journal` y `/`.
+
 **Está siempre, también en un día sin entradas.** Es un botón y no un
 link porque antes de irse tiene que avisar si dejás un resultado a medio
 escribir: irte a escribir la nota y volver para descubrir que el número se
