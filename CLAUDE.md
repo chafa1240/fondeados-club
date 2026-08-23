@@ -483,9 +483,25 @@ venís de una fondeada, el journal abre filtrado en fondeadas; si venís de
 una evaluación, en evaluaciones. Llegar a una pantalla filtrada por otra
 cosa te hace dudar de si el número que estás viendo es el de tu cuenta.
 
-**Y desde el journal se puede cargar el resultado del día**, eligiendo la
-cuenta ahí mismo: el modal tiene arriba un alta con desplegable de cuenta,
-monto y —solo si esa cuenta tiene drawdown que trailea— el máximo del día.
+**Y desde el journal se puede cargar el resultado del día**, eligiendo las
+cuentas ahí mismo: el modal tiene arriba un alta con **chips de cuenta
+(varias a la vez)**, monto y —solo si alguna de las elegidas tiene
+drawdown que trailea— el máximo del día. Cada entrada del día tiene su
+**Borrar**: si se puede cargar desde acá, se tiene que poder deshacer
+desde acá.
+
+**Por qué varias cuentas y no un desplegable simple**: replicar es la
+forma normal de operar con prop firms —la misma orden se copia a varias
+cuentas y el día queda con el mismo número en todas—, y cargarlo cuenta
+por cuenta es justo donde uno se saltea una o tipea otro monto. La action
+`guardarEnVariasCuentas()` recorre las elegidas llamando a
+`guardarResultado()` una vez por cada una, en vez de escribir su propio
+insert: el alta corre la semilla y deja un solo máximo por día, y duplicar
+esa lógica es la forma más rápida de que las dos empiecen a diferir. **Si
+una falla, las otras igual se guardan** y el mensaje dice cuántas
+entraron: cancelar las cinco porque una falló te deja sin saber cuáles
+quedaron. Después de guardar se limpia el monto pero **no** las cuentas
+elegidas: el segundo trade del día va casi siempre en las mismas.
 Usa **la misma action** que la sección Cuentas (`guardarResultado`), no
 una copia: el alta toca la semilla, el máximo del día y el balance
 calculado, y dos caminos distintos para escribir lo mismo terminan

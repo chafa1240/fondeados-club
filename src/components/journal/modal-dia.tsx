@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarNota, type EstadoJournal } from "@/app/(app)/journal/actions";
 import {
-  guardarResultado,
+  eliminarResultado,
+  guardarEnVariasCuentas,
   type EstadoForm,
 } from "@/app/(app)/cuentas/resultados-actions";
 import { enJuego, fechaCorta, plata, trailea, type Tipo } from "@/lib/cuentas";
@@ -20,16 +21,20 @@ import type { CuentaJournal, DiaJournal } from "@/lib/journal";
  * escribir nunca más.
  */
 
-function Agregar() {
+function Agregar({ cuantas }: { cuantas: number }) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
-      className="rounded-lg border border-neutral-700 px-3 py-2 text-sm transition hover:bg-neutral-800 disabled:opacity-60"
+      disabled={pending || cuantas === 0}
+      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
     >
-      {pending ? "Agregando…" : "Agregar"}
+      {pending
+        ? "Agregando…"
+        : cuantas > 1
+          ? `Agregar en ${cuantas} cuentas`
+          : "Agregar"}
     </button>
   );
 }
@@ -50,8 +55,19 @@ function AltaResultado({
   cuentas: CuentaJournal[];
   tipo: Tipo;
 }) {
-  const [estado, accion] = useFormState<EstadoForm, FormData>(guardarResultado, {});
-  const [cuentaId, setCuentaId] = useState("");
+  const [estado, accion] = useFormState<EstadoForm, FormData>(
+    guardarEnVariasCuentas,
+    {}
+  );
+  /**
+   * Varias cuentas a la vez, no una.
+   *
+   * Replicar es la forma normal de operar con prop firms: la misma orden
+   * se copia a varias cuentas y el día queda con el mismo número en todas.
+   * Con un desplegable simple había que repetir la carga cuenta por
+   * cuenta, que es justo donde uno se saltea una o tipea otro monto.
+   */
+  const [elegidas, setElegidas] = useState<string[]>([]);
   const [monto, setMonto] = useState("");
   const [maximo, setMaximo] = useState("");
 
@@ -60,8 +76,11 @@ function AltaResultado({
   useEffect(() => {
     setMonto("");
     setMaximo("");
+    setElegidas([]);
   }, [fecha]);
 
+  // Se limpia el monto pero **no** las cuentas elegidas: si cargás dos
+  // trades del mismo día, el segundo va casi siempre en las mismas.
   useEffect(() => {
     if (estado.ok) {
       setMonto("");
@@ -79,8 +98,15 @@ function AltaResultado({
    */
   const disponibles = cuentas.filter((c) => enJuego(c.estado));
 
-  const elegida = disponibles.find((c) => c.id === cuentaId);
-  const pideMaximo = elegida !== undefined && trailea(elegida.modo_drawdown);
+  // Alcanza con que una de las elegidas tenga drawdown que trailea: el
+  // dato se guarda solo en las que lo usan.
+  const pideMaximo = disponibles.some(
+    (c) => elegidas.includes(c.id) && trailea(c.modo_drawdown)
+  );
+
+  function alternar(id: string) {
+    setElegidas((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  }
 
   // Primero las del tipo que estás mirando: nueve de cada diez veces es
   // una de esas.
@@ -103,32 +129,54 @@ function AltaResultado({
 
       <p className="text-sm font-medium">Cargar un resultado</p>
       <p className="mt-0.5 text-xs text-neutral-500">
-        Se guarda en la cuenta que elijas, igual que desde la sección Cuentas.
-        Solo aparecen las cuentas en juego.
+        Elegí una o varias cuentas. Solo aparecen las que están en juego.
       </p>
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <label className="min-w-[12rem] flex-1">
-          <span className="sr-only">Cuenta</span>
-          <select
-            name="cuenta_id"
-            value={cuentaId}
-            onChange={(e) => setCuentaId(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
-          >
-            <option value="">Elegí la cuenta…</option>
-            {grupos.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.cuentas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+      <input type="hidden" name="cuenta_ids" value={elegidas.join(",")} />
 
+      <div className="mt-3 space-y-2">
+        {grupos.map((g) => (
+          <div key={g.label} className="flex flex-wrap items-center gap-1.5">
+            <span className="w-24 shrink-0 text-xs text-neutral-500">{g.label}</span>
+            {g.cuentas.map((c) => {
+              const activa = elegidas.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => alternar(c.id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                    activa
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                      : "border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
+                  }`}
+                >
+                  {c.nombre}
+                </button>
+              );
+            })}
+            {g.cuentas.length > 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setElegidas((v) => {
+                    const ids = g.cuentas.map((c) => c.id);
+                    const todas = ids.every((id) => v.includes(id));
+                    return todas
+                      ? v.filter((id) => !ids.includes(id))
+                      : [...new Set([...v, ...ids])];
+                  })
+                }
+                className="text-xs text-neutral-500 underline-offset-2 transition hover:text-neutral-300 hover:underline"
+              >
+                Todas
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="w-32">
           <span className="sr-only">Resultado en dólares</span>
           <input
@@ -156,7 +204,7 @@ function AltaResultado({
           </label>
         )}
 
-        <Agregar />
+        <Agregar cuantas={elegidas.length} />
       </div>
 
       <p className="mt-2 text-xs text-neutral-500">
@@ -165,10 +213,72 @@ function AltaResultado({
         ) : estado.ok ? (
           <span className="text-emerald-400">{estado.ok}</span>
         ) : (
-          "Negativo si perdiste. Podés cargar varias entradas en el mismo día."
+          elegidas.length > 1
+            ? `El mismo monto se carga en las ${elegidas.length} cuentas elegidas.`
+            : "Negativo si perdiste. Tocá varias cuentas para cargar el mismo monto en todas."
         )}
       </p>
     </form>
+  );
+}
+
+/**
+ * Una entrada del día, con su borrado.
+ *
+ * Si se puede cargar desde acá, se tiene que poder deshacer desde acá: un
+ * monto en la cuenta equivocada obligaba a ir hasta Cuentas, buscar la
+ * tarjeta y abrir otro modal para arreglar algo que se hizo en dos
+ * segundos.
+ */
+function FilaEntrada({
+  entrada,
+}: {
+  entrada: { id: string; cuenta: string; monto: number; notas: string | null };
+}) {
+  const [borrando, empezar] = useTransition();
+
+  return (
+    <li className="flex items-center justify-between gap-3 py-1.5">
+      <span className="min-w-0">
+        <span className="text-neutral-300">{entrada.cuenta}</span>
+        {entrada.notas && (
+          <span className="ml-2 text-xs text-neutral-500">{entrada.notas}</span>
+        )}
+      </span>
+
+      <span className="flex shrink-0 items-center gap-3">
+        <span
+          className={`tabular-nums ${
+            entrada.monto > 0
+              ? "text-emerald-400"
+              : entrada.monto < 0
+                ? "text-rose-400"
+                : "text-neutral-400"
+          }`}
+        >
+          {plata(entrada.monto, 2)}
+        </span>
+        <button
+          type="button"
+          disabled={borrando}
+          onClick={() => {
+            if (
+              !confirm(
+                `¿Borrar ${plata(entrada.monto, 2)} de ${entrada.cuenta}?`
+              )
+            ) {
+              return;
+            }
+            empezar(async () => {
+              await eliminarResultado(entrada.id);
+            });
+          }}
+          className="text-xs text-neutral-600 transition hover:text-rose-400 disabled:opacity-50"
+        >
+          {borrando ? "Borrando…" : "Borrar"}
+        </button>
+      </span>
+    </li>
   );
 }
 
@@ -321,25 +431,7 @@ export function ModalDia({
             </p>
             <ul className="divide-y divide-neutral-800/70 text-sm">
               {detalle.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="min-w-0">
-                    <span className="text-neutral-300">{d.cuenta}</span>
-                    {d.notas && (
-                      <span className="ml-2 text-xs text-neutral-500">{d.notas}</span>
-                    )}
-                  </span>
-                  <span
-                    className={`tabular-nums ${
-                      d.monto > 0
-                        ? "text-emerald-400"
-                        : d.monto < 0
-                          ? "text-rose-400"
-                          : "text-neutral-400"
-                    }`}
-                  >
-                    {plata(d.monto, 2)}
-                  </span>
-                </li>
+                <FilaEntrada key={d.id} entrada={d} />
               ))}
             </ul>
           </div>

@@ -102,6 +102,71 @@ export async function guardarResultado(
 }
 
 /**
+ * El mismo resultado en varias cuentas de una sola vez.
+ *
+ * Existe porque replicar es la forma normal de operar con prop firms: la
+ * misma orden se copia a cinco cuentas y el día queda con el mismo número
+ * en todas. Cargarlo cinco veces a mano es donde aparecen los errores —
+ * una cuenta que se saltea, un monto tipeado distinto.
+ *
+ * Reusa `guardarResultado()` cuenta por cuenta en vez de escribir el
+ * insert acá: el alta corre la semilla y deja un solo máximo por día, y
+ * duplicar esa lógica es la forma más rápida de que las dos empiecen a
+ * diferir.
+ *
+ * Si una falla, **las otras igual se guardan** y el mensaje dice cuántas
+ * entraron y cuántas no: cancelar las cinco porque una falló es peor:
+ * te deja sin saber cuáles quedaron.
+ */
+export async function guardarEnVariasCuentas(
+  _prev: EstadoForm,
+  fd: FormData,
+): Promise<EstadoForm> {
+  const ids = String(fd.get("cuenta_ids") ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) return { error: "Elegí al menos una cuenta." };
+
+  const fecha = String(fd.get("fecha") ?? "");
+  const monto = String(fd.get("monto") ?? "");
+  const pico = String(fd.get("pico_dia") ?? "");
+  const notas = String(fd.get("notas") ?? "");
+
+  let guardadas = 0;
+  const errores: string[] = [];
+
+  for (const cuenta_id of ids) {
+    const uno = new FormData();
+    uno.set("cuenta_id", cuenta_id);
+    uno.set("fecha", fecha);
+    uno.set("monto", monto);
+    if (pico) uno.set("pico_dia", pico);
+    if (notas) uno.set("notas", notas);
+
+    const r = await guardarResultado({}, uno);
+    if (r.error) errores.push(r.error);
+    else guardadas += 1;
+  }
+
+  if (guardadas === 0) return { error: errores[0] ?? "No se pudo guardar." };
+
+  if (errores.length > 0) {
+    return {
+      ok: `Guardado en ${guardadas} de ${ids.length} cuentas. En las otras: ${errores[0]}`,
+    };
+  }
+
+  return {
+    ok:
+      guardadas === 1
+        ? "Entrada agregada."
+        : `Entrada agregada en ${guardadas} cuentas.`,
+  };
+}
+
+/**
  * El máximo del día lo lleva **una sola entrada**; las demás quedan en
  * NULL.
  *
