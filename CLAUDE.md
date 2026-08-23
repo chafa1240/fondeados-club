@@ -449,6 +449,60 @@ Tailwind lee la config una sola vez, al arrancar. Los cambios de
 Archivos: `tailwind.config.ts`, `src/app/globals.css`, `src/lib/tema.ts`,
 `src/components/selector-tema.tsx`, `src/app/layout.tsx`.
 
+## Journal (definido e implementado 2026-08-23)
+
+Una **nota por día**, en su propia sección del menú. Sale de mirar el
+journaling de Tradesyncer en vivo (2026-08-23) con el usuario.
+
+**Qué copiamos y qué no.** Casi todo lo lindo de ellos —win rate, profit
+factor, curva intradía, tabla de operaciones— sale del **sync de trades**
+con el broker. Nosotros tenemos un número por día tipeado a mano, así que
+copiamos **la forma, no el contenido**. Y la forma que importa no son las
+métricas: es **el estado escrito / sin escribir**. Ver de un vistazo qué
+días escribiste es lo que hace que vuelvas a escribir; eso es gratis y es
+el corazón de la pantalla.
+
+**Sección aparte, con la puerta en el Home.** El Home es para mirar y se
+abre diez veces por día; el journal es para sentarse a escribir, una vez
+al cierre. Son dos gestos con ritmos distintos y juntarlos empeora los
+dos: el Home se alarga y el journal queda apretado. Tradesyncer hace lo
+mismo. Lo que sí va en el Home es **el gesto de entrada**: clic en un día
+del calendario abre ese día del journal (el modal se comparte).
+
+**Esto NO contradice "journal trade por trade: no, decidido"**
+(`docs/LO-QUE-NOS-FALTA.md`). Aquello es otro producto y necesita cargar
+operación por operación. Un journal por día encaja con los datos que ya
+existen.
+
+**Por qué una tabla nueva** (`journal_dias`, migración 013) y no la
+columna `notas` de `resultados_diarios`: desde la 012 un día puede tener
+varias entradas, así que esa columna es la nota *de la entrada*; guardar
+ahí la reflexión de la jornada obligaría a elegir en cuál fila ponerla y a
+moverla si esa fila se borra. Y el journal tiene que poder existir **sin
+ningún resultado cargado** — el día que no operaste y querés dejar escrito
+por qué, es de los que más vale la pena escribir.
+
+Detalles que parecen menores y no lo son:
+
+- **Una nota vacía borra la fila**, no guarda un texto en blanco. Si no,
+  abrir el modal una vez dejaría el día marcado como escrito y el
+  indicador dejaría de decir la verdad.
+- **Las flechas ‹ › pasan de día sin cerrar el modal**, y avisan si hay
+  algo sin guardar. Perder un párrafo por apretar una flecha es la forma
+  más rápida de que alguien no vuelva a escribir nunca más.
+- Las flechas navegan **la lista completa**, no la filtrada: si estás en
+  "Sin escribir" y guardás, el día no tiene que desaparecerte de abajo de
+  las flechas.
+
+**Los adjuntos (capturas de los gráficos) quedaron para un paso
+posterior**: necesitan Supabase Storage —bucket, políticas, límites de
+tamaño y cuánto ocupa cada usuario— y es la única parte que puede costar
+plata si crece. Tradesyncer los tiene y son la mitad de la gracia, así que
+es el próximo paso natural del journal.
+
+Archivos: `supabase/013_journal.sql`, `src/lib/journal.ts`,
+`src/app/(app)/journal/`, `src/components/journal/`.
+
 ## Modelo de datos (definido 2026-08-16)
 SQL completo (tablas + índices + RLS + trigger) en `supabase/schema.sql`,
 corrido con éxito en el SQL Editor del proyecto `fondeados-club`
