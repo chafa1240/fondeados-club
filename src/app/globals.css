@@ -47,6 +47,12 @@
   --grafico-eje: 82 82 82;
   --grafico-texto: 115 115 115;
   --grafico-barra: 64 64 64;
+  /* Los dos polos del gráfico por día de la semana. Elegidos con el
+     validador de la guía de visualización: en oscuro separan ΔE 13.8 para
+     daltonismo deutan (el piso es 8) y en claro pasan las seis pruebas.
+     El verde/rosa que usa el resto de la app no llega: ΔE 4.6. */
+  --grafico-positivo: 52 211 153;
+  --grafico-negativo: 239 68 68;
 
   color-scheme: dark;
 }
@@ -92,6 +98,8 @@
   --grafico-eje: 163 163 163;
   --grafico-texto: 115 115 115;
   --grafico-barra: 212 212 212;
+  --grafico-positivo: 5 150 105;
+  --grafico-negativo: 220 38 38;
 
   color-scheme: light;
 }

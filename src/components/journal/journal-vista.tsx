@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ModalDia } from "./modal-dia";
 import { Calendario } from "@/components/home/calendario";
+import { Estadisticas } from "./estadisticas";
 import { fechaCorta, plata } from "@/lib/cuentas";
 import {
   diasDeJournal,
@@ -168,6 +169,8 @@ export function JournalVista({
 
   return (
     <div className="space-y-4">
+      <Estadisticas diasTrading={diasTrading} diasJournal={dias} />
+
       {calendario && (
         <Calendario
           datos={calendario}

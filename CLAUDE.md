@@ -494,6 +494,43 @@ Detalles que parecen menores y no lo son:
   "Sin escribir" y guardás, el día no tiene que desaparecerte de abajo de
   las flechas.
 
+### Las estadísticas del journal (2026-08-23)
+
+Todas se calculan **sobre días, nunca sobre operaciones**. Profit factor y
+win rate por trade —que es lo que llena el tablero de Tradesyncer— salen
+de operaciones importadas del broker; sin eso, mostrarlos sería inventar.
+Lo que sí se puede decir con un número por día es más de lo que parece:
+
+- **Racha de escritura**: días operados seguidos, desde el último, que
+  tienen nota. Cuenta días **operados**, no de calendario —un fin de
+  semana no corta la racha porque no había nada que escribir—, y si el
+  último día operado no está escrito la racha es **cero**, no "se
+  mantiene": el punto de una racha es que duela cortarla.
+- **Días en verde**, **día promedio** (la expectativa por jornada),
+  **mejor día** y **peor día**.
+- **¿Escribir te sirve?** — el resultado promedio **del día después** de
+  escribir contra el del día después de no escribir. El "después" no es un
+  detalle: la nota se escribe al cierre, así que comparar días escritos
+  contra no escritos sin correr la ventana sería medir el efecto de una
+  causa posterior. Aun así es correlación y no causa, y la pantalla lo
+  dice. **No se muestra hasta tener 5 días en cada grupo**: un número que
+  miente, en la pantalla que te pide escribir todos los días, es peor que
+  no mostrar nada.
+- **Por día de la semana**: barras con el total de cada día, que ningún
+  competidor tiene y suele destapar patrones.
+
+**Los colores del gráfico se validaron, no se eligieron a ojo.** El
+verde/rosa que usa el resto de la app separa ΔE 4.6 para daltonismo
+deutan, muy abajo del piso de 8. Los del gráfico son
+`--grafico-positivo` / `--grafico-negativo`: en oscuro separan 13.8 y en
+claro pasan las seis pruebas. Además el signo no depende del color — la
+barra está arriba o abajo del cero y tiene el número escrito al lado.
+
+**Lo que se descartó a propósito**: un "score" compuesto tipo el de
+Tradesyncer (mezcla métricas con una fórmula que no explican y saber que
+tenés 50/100 no te dice qué hacer mañana), y repetir la misma serie de
+P&L en tres gráficos distintos, que es lo que hacen ellos.
+
 **Los adjuntos (capturas de los gráficos) quedaron para un paso
 posterior**: necesitan Supabase Storage —bucket, políticas, límites de
 tamaño y cuánto ocupa cada usuario— y es la única parte que puede costar
