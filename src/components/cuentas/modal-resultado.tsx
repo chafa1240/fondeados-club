@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
@@ -178,6 +178,7 @@ export function ModalResultado({
   resultados: Resultado[];
   onCerrar: () => void;
 }) {
+  const router = useRouter();
   const [estado, formAction] = useFormState<EstadoForm, FormData>(
     guardarResultado,
     {}
@@ -203,6 +204,22 @@ export function ModalResultado({
     setPct("");
     setNotas("");
   }, []);
+
+  /** Hay algo tipeado que todavía no se guardó. */
+  const sinGuardar =
+    monto.trim() !== "" || pct.trim() !== "" || notas.trim() !== "";
+
+  function irAlJournal() {
+    if (
+      sinGuardar &&
+      !confirm(
+        "Tenés un resultado escrito sin guardar. Si vas al journal ahora, se pierde. ¿Vas igual?"
+      )
+    ) {
+      return;
+    }
+    router.push(`/journal?dia=${fecha}`);
+  }
 
   // Cambiar de día siempre arranca de cero: seguir editando una entrada de
   // otra fecha guardaría el cambio en el día equivocado.
@@ -423,19 +440,21 @@ export function ModalResultado({
           )}
 
           <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
-            {/* Aparece recién cuando el día ya tiene algo cargado: escribir
-                sobre un día vacío no tiene sentido, y un botón que aparece
-                justo cuando sirve enseña solo para qué está. */}
-            {delDia.length > 0 && (
-              <Link
-                href={`/journal?dia=${fecha}`}
-                title="Ir al journal a escribir qué pasó ese día"
-                className="mr-auto flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
-              >
-                <JournalIcon />
-                Escribir el día
-              </Link>
-            )}
+            {/* Está siempre, también mientras cargás: el momento en que
+                mejor te acordás de lo que pasó es justo ese. Es un botón y
+                no un link porque antes de irse tiene que avisar si dejás
+                un resultado a medio escribir — irte a escribir la nota y
+                volver para descubrir que el número se perdió es la peor
+                forma de aprender cómo funciona la pantalla. */}
+            <button
+              type="button"
+              onClick={irAlJournal}
+              title="Ir al journal a escribir qué pasó ese día"
+              className="mr-auto flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
+            >
+              <JournalIcon />
+              Escribir el día
+            </button>
 
             {editando ? (
               <button
