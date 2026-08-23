@@ -468,6 +468,16 @@ a la izquierda un botón **"Escribir el día"** que lleva a
 uno se acuerda de lo que pasó: acabás de cargar el número, o lo estás
 cargando.
 
+**Y al guardar aparece la invitación**: un panel verde que dice "Guardado.
+¿Escribís qué pasó ese día, mientras te acordás?" con el botón y un "Ahora
+no". No es un cartel de éxito —que el día se guardó ya se ve, la entrada
+aparece en la lista de arriba—: lo que agrega es ofrecerte escribir **en
+el único momento en que te acordás de todo**, que es el segundo después de
+cargar el número. Si no, la nota se escribe tres días más tarde o no se
+escribe nunca. Mientras la invitación está, el botón del pie se esconde:
+dos botones iguales a la vez no dan el doble de ganas de escribir, dan la
+mitad.
+
 **Está siempre, también en un día sin entradas.** Es un botón y no un
 link porque antes de irse tiene que avisar si dejás un resultado a medio
 escribir: irte a escribir la nota y volver para descubrir que el número se

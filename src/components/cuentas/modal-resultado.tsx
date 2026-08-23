@@ -190,6 +190,16 @@ export function ModalResultado({
   const [pct, setPct] = useState("");
   const [notas, setNotas] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  /**
+   * Se prende al guardar un día y se apaga si decís que no.
+   *
+   * Es una invitación, no un cartel de éxito: el "guardado" ya se ve
+   * porque la entrada aparece en la lista de arriba. Lo que agrega es
+   * ofrecerte escribir **en el único momento en que te acordás de todo**,
+   * que es el segundo después de cargar el número. Si no, la nota se
+   * escribe tres días más tarde o no se escribe nunca.
+   */
+  const [invita, setInvita] = useState(false);
 
   const delDia = entradasDelDia(resultados, fecha);
   const netoDelDia = delDia.reduce((a, r) => a + r.monto, 0);
@@ -268,8 +278,16 @@ export function ModalResultado({
   // esto correría una sola vez y la segunda entrada del día quedaría
   // escrita en el formulario.
   useEffect(() => {
-    if (estado.ok) limpiar();
+    if (estado.ok) {
+      limpiar();
+      setInvita(true);
+    }
   }, [estado, limpiar]);
+
+  // Cambiar de día se lleva la invitación puesta: es del día que guardaste.
+  useEffect(() => {
+    setInvita(false);
+  }, [fecha]);
 
   // El máximo del día solo importa mientras el trailing siga vivo: una vez
   // congelado, el flotante ya no mueve el piso.
@@ -439,6 +457,29 @@ export function ModalResultado({
             </p>
           )}
 
+          {invita && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+              <p className="min-w-0 flex-1 text-sm text-emerald-300">
+                Guardado. ¿Escribís qué pasó ese día, mientras te acordás?
+              </p>
+              <button
+                type="button"
+                onClick={irAlJournal}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500"
+              >
+                <JournalIcon />
+                Escribir el día
+              </button>
+              <button
+                type="button"
+                onClick={() => setInvita(false)}
+                className="text-sm text-neutral-400 transition hover:text-neutral-200"
+              >
+                Ahora no
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
             {/* Está siempre, también mientras cargás: el momento en que
                 mejor te acordás de lo que pasó es justo ese. Es un botón y
@@ -446,15 +487,20 @@ export function ModalResultado({
                 un resultado a medio escribir — irte a escribir la nota y
                 volver para descubrir que el número se perdió es la peor
                 forma de aprender cómo funciona la pantalla. */}
-            <button
-              type="button"
-              onClick={irAlJournal}
-              title="Ir al journal a escribir qué pasó ese día"
-              className="mr-auto flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
-            >
-              <JournalIcon />
-              Escribir el día
-            </button>
+            {/* Mientras está la invitación, este se esconde: dos botones
+                iguales a la vez, uno arriba del otro, no dan el doble de
+                ganas de escribir — dan la mitad. */}
+            {!invita && (
+              <button
+                type="button"
+                onClick={irAlJournal}
+                title="Ir al journal a escribir qué pasó ese día"
+                className="mr-auto flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
+              >
+                <JournalIcon />
+                Escribir el día
+              </button>
+            )}
 
             {editando ? (
               <button
