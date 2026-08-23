@@ -57,6 +57,16 @@ drop policy if exists "journal: delete own" on public.journal_dias;
 create policy "journal: delete own"
   on public.journal_dias for delete using (auth.uid() = user_id);
 
+-- **Sin esto la tabla existe pero la API no la puede tocar.** El proyecto
+-- tiene desactivado "Automatically expose new tables", así que cada tabla
+-- nueva nace sin permisos para los roles de la API y toda consulta
+-- devuelve "permission denied for table journal_dias". No debilita nada:
+-- el permiso es "podés hablarle a la tabla", y qué filas ve cada uno lo
+-- sigue decidiendo RLS. Al rol `anon` no se le da nada.
+grant select, insert, update, delete
+  on public.journal_dias
+  to authenticated;
+
 -- El mismo trigger de updated_at que usan las otras tablas.
 drop trigger if exists set_updated_at on public.journal_dias;
 create trigger set_updated_at

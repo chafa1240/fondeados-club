@@ -293,6 +293,8 @@ export type Celda = {
   monto: number | null;
   entradas: number;
   esHoy: boolean;
+  /** Una marca opcional del día. Hoy la usa el journal: "acá escribiste". */
+  marcado: boolean;
 };
 
 export type Semana = {
@@ -350,7 +352,9 @@ export const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 export function armarMes(
   mes: string,
   dias: DiaHome[],
-  hoy: string
+  hoy: string,
+  /** Fechas a marcar con un punto. El journal manda acá los días escritos. */
+  marcados?: Set<string>
 ): MesCalendario {
   const [anio, numeroMes] = partesMes(mes);
 
@@ -390,6 +394,7 @@ export function armarMes(
       monto: dia ? dia.monto : null,
       entradas: dia ? dia.entradas : 0,
       esHoy: fecha === hoy,
+      marcado: marcados ? marcados.has(fecha) : false,
     });
 
     if (actual.length === 7) {

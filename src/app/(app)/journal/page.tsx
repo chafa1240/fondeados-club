@@ -43,10 +43,19 @@ export default async function JournalPage() {
 
       {faltaMigracion && (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-400">
-          <p className="font-medium">Falta correr la migración 013 en Supabase.</p>
+          <p className="font-medium">
+            El journal todavía no puede guardar notas.
+          </p>
           <p className="mt-1 text-amber-500/90">
-            Abrí el SQL Editor y corré <code>supabase/013_journal.sql</code>. Hasta
-            entonces se pueden ver los días pero no guardar notas.
+            Corré <code>supabase/013_journal.sql</code> completo en el SQL Editor
+            de Supabase. Si ya lo corriste, volvé a correrlo: le faltaba el
+            permiso de la API (este proyecto no expone las tablas nuevas solo).
+          </p>
+          {/* El mensaje crudo, que es el que dice si es "no existe la tabla"
+              o "permission denied". Adivinar cuál de los dos es cuesta más
+              que mostrarlo. */}
+          <p className="mt-2 font-mono text-xs text-amber-500/70">
+            {errorNotas?.message}
           </p>
         </div>
       )}

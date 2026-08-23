@@ -500,6 +500,22 @@ tamaño y cuánto ocupa cada usuario— y es la única parte que puede costar
 plata si crece. Tradesyncer los tiene y son la mitad de la gracia, así que
 es el próximo paso natural del journal.
 
+**El calendario del mes también está en el journal**, arriba de la lista,
+con un **punto verde** en los días que tienen nota. Es el mismo componente
+que el del Home (`src/components/home/calendario.tsx`), con dos props
+nuevas: `abrirVacios` —en el journal se puede abrir cualquier día, también
+uno que no operaste— y `resumen`, para cambiar el texto de la derecha.
+
+⚠️ **Toda tabla nueva necesita su `grant` a `authenticated`.** Este
+proyecto tiene desactivado "Automatically expose new tables", así que una
+tabla creada con RLS y políticas correctas **igual devuelve "permission
+denied for table X"** hasta que se le da el permiso (ver
+`supabase/exponer_tablas.sql`). Pasó con la 013: la primera versión creaba
+la tabla sin el grant y la app decía "falta correr la migración" cuando en
+realidad ya se había corrido. Por eso el cartel de error ahora **muestra
+el mensaje crudo de Postgres**: distinguir "no existe la tabla" de
+"permission denied" a ojo cuesta más que mostrarlo.
+
 Archivos: `supabase/013_journal.sql`, `src/lib/journal.ts`,
 `src/app/(app)/journal/`, `src/components/journal/`.
 

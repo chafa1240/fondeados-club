@@ -30,7 +30,13 @@ function tonoDia(monto: number) {
   return "border-neutral-700 bg-neutral-800/60 text-neutral-300";
 }
 
-function CeldaDia({ celda, onClick }: { celda: Celda | null; onClick?: () => void }) {
+function CeldaDia({
+  celda,
+  onClick,
+}: {
+  celda: Celda | null;
+  onClick?: () => void;
+}) {
   if (!celda) return <div className="min-h-[3.75rem] rounded-lg" />;
 
   const vacio = celda.monto === null;
@@ -42,7 +48,15 @@ function CeldaDia({ celda, onClick }: { celda: Celda | null; onClick?: () => voi
   const contenido = (
     <>
       <span className="flex items-center justify-between text-[0.6875rem] leading-none text-neutral-500">
-        {celda.numero}
+        <span className="flex items-center gap-1">
+          {celda.numero}
+          {celda.marcado && (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+              title="Tiene nota escrita"
+            />
+          )}
+        </span>
         {celda.entradas > 1 && (
           <span
             className="rounded-full bg-neutral-800 px-1 text-[0.625rem] text-neutral-400"
@@ -62,9 +76,11 @@ function CeldaDia({ celda, onClick }: { celda: Celda | null; onClick?: () => voi
 
   const borde = celda.esHoy ? "ring-1 ring-inset ring-sky-400/60" : "";
 
-  // Solo los días con algo cargado son clicleables: un día vacío no tiene
-  // nada que abrir, y un botón que no hace nada es peor que ningún botón.
-  if (vacio || !onClick) {
+  // En el Home solo se abren los días con algo cargado: un día vacío no
+  // tiene nada que mostrar y un botón que no hace nada es peor que ningún
+  // botón. En el journal sí se abren, porque el día que no operaste
+  // también se puede escribir (`abrirVacios`).
+  if (!onClick) {
     return (
       <div className={`min-h-[3.75rem] rounded-lg border p-1.5 ${clases} ${borde}`}>
         {contenido}
@@ -75,7 +91,7 @@ function CeldaDia({ celda, onClick }: { celda: Celda | null; onClick?: () => voi
   return (
     <button
       onClick={onClick}
-      title={`${celda.fecha} · ${plata(celda.monto as number, 2)}`}
+      title={vacio ? celda.fecha : `${celda.fecha} · ${plata(celda.monto as number, 2)}`}
       className={`min-h-[3.75rem] rounded-lg border p-1.5 text-left transition hover:brightness-125 ${clases} ${borde}`}
     >
       {contenido}
@@ -89,12 +105,18 @@ export function Calendario({
   onDia,
   puedeAtras,
   puedeAdelante,
+  abrirVacios = false,
+  resumen,
 }: {
   datos: MesCalendario;
   onMes: (mes: string) => void;
   onDia?: (fecha: string) => void;
   puedeAtras: boolean;
   puedeAdelante: boolean;
+  /** true = también se pueden abrir los días sin nada cargado. */
+  abrirVacios?: boolean;
+  /** Reemplaza el resumen de la derecha (días, verdes, rojos, total). */
+  resumen?: React.ReactNode;
 }) {
   const signo = datos.total > 0 ? "text-emerald-400" : datos.total < 0 ? "text-rose-400" : "text-neutral-300";
 
@@ -121,16 +143,18 @@ export function Calendario({
           <p className="ml-2 text-sm font-medium">{etiquetaMes(datos.mes)}</p>
         </div>
 
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-neutral-500">
-            {datos.diasConDatos === 0
-              ? "Sin días cargados"
-              : `${datos.diasConDatos} ${datos.diasConDatos === 1 ? "día" : "días"} · ${datos.ganadores} en verde, ${datos.perdedores} en rojo`}
-          </span>
-          <span className={`font-semibold tabular-nums ${signo}`}>
-            {plata(datos.total)}
-          </span>
-        </div>
+        {resumen ?? (
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-neutral-500">
+              {datos.diasConDatos === 0
+                ? "Sin días cargados"
+                : `${datos.diasConDatos} ${datos.diasConDatos === 1 ? "día" : "días"} · ${datos.ganadores} en verde, ${datos.perdedores} en rojo`}
+            </span>
+            <span className={`font-semibold tabular-nums ${signo}`}>
+              {plata(datos.total)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* La columna extra de la derecha es el total de la semana. */}
@@ -150,7 +174,11 @@ export function Calendario({
               <CeldaDia
                 key={j}
                 celda={c}
-                onClick={c && c.monto !== null && onDia ? () => onDia(c.fecha) : undefined}
+                onClick={
+                  c && onDia && (abrirVacios || c.monto !== null)
+                    ? () => onDia(c.fecha)
+                    : undefined
+                }
               />
             ))}
             <div className="flex min-w-[5rem] items-center justify-end pl-2 text-xs tabular-nums">

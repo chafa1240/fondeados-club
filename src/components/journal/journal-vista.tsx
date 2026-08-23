@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ModalDia } from "./modal-dia";
+import { Calendario } from "@/components/home/calendario";
 import { fechaCorta, plata } from "@/lib/cuentas";
-import { diasDeJournal, vecinos, type NotaDia } from "@/lib/journal";
-import { diasDeTrading } from "@/lib/home";
+import { diasDeJournal, vecinos, type DiaJournal, type NotaDia } from "@/lib/journal";
+import {
+  armarMes,
+  diasDeTrading,
+  hoyLocal,
+  mesDeFecha,
+  mesesConDatos,
+} from "@/lib/home";
 import type { Resultado } from "@/lib/resultados";
 
 /**
@@ -38,9 +45,42 @@ export function JournalVista({
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [abierto, setAbierto] = useState<string | null>(null);
 
+  // "Hoy" lo decide el navegador: el servidor corre en UTC y de noche eso
+  // ya es mañana. Arranca en null para que el HTML del servidor y el del
+  // cliente sean iguales.
+  const [hoy, setHoy] = useState<string | null>(null);
+  const [mes, setMes] = useState<string | null>(null);
+
+  useEffect(() => {
+    const d = hoyLocal();
+    setHoy(d);
+    setMes((m) => m ?? mesDeFecha(d));
+  }, []);
+
+  const diasTrading = useMemo(() => diasDeTrading(resultados), [resultados]);
+
   const dias = useMemo(
-    () => diasDeJournal(diasDeTrading(resultados), notas),
-    [resultados, notas]
+    () => diasDeJournal(diasTrading, notas),
+    [diasTrading, notas]
+  );
+
+  /** Los días con nota, para el punto verde de las celdas. */
+  const escritosSet = useMemo(
+    () => new Set(dias.filter((d) => d.escrito).map((d) => d.fecha)),
+    [dias]
+  );
+
+  const calendario = useMemo(
+    () => (mes && hoy ? armarMes(mes, diasTrading, hoy, escritosSet) : null),
+    [mes, hoy, diasTrading, escritosSet]
+  );
+
+  const meses = useMemo(() => mesesConDatos(diasTrading), [diasTrading]);
+
+  /** Cuántos días del mes que estás mirando tienen nota. */
+  const escritosDelMes = useMemo(
+    () => (mes ? dias.filter((d) => d.escrito && d.fecha.startsWith(mes)).length : 0),
+    [dias, mes]
   );
 
   const visibles = useMemo(
@@ -57,7 +97,20 @@ export function JournalVista({
 
   const escritos = dias.filter((d) => d.escrito).length;
 
-  const dia = abierto ? dias.find((d) => d.fecha === abierto) : undefined;
+  /**
+   * El día abierto. Si no está en la lista es un día en blanco del
+   * calendario: se arma uno vacío en vez de no abrir nada, porque el día
+   * que no operaste también se puede escribir.
+   */
+  const dia: DiaJournal | undefined = abierto
+    ? (dias.find((d) => d.fecha === abierto) ?? {
+        fecha: abierto,
+        monto: null,
+        entradas: 0,
+        nota: undefined,
+        escrito: false,
+      })
+    : undefined;
 
   // Las flechas navegan la lista COMPLETA, no la filtrada: si estás viendo
   // "sin escribir" y guardás una nota, el día no tiene que desaparecerte
@@ -78,20 +131,28 @@ export function JournalVista({
       }));
   }, [abierto, resultados, nombres]);
 
-  if (dias.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 p-10 text-center">
-        <p className="text-sm text-neutral-300">Todavía no hay días para escribir.</p>
-        <p className="mt-1 text-sm text-neutral-500">
-          Cargá un resultado en alguna cuenta y ese día va a aparecer acá para
-          que escribas qué pasó.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
+      {calendario && (
+        <Calendario
+          datos={calendario}
+          onMes={setMes}
+          onDia={(f) => setAbierto(f)}
+          // En el journal se abre cualquier día, también los que no
+          // operaste: eso también se puede escribir.
+          abrirVacios
+          puedeAtras={meses.length === 0 || calendario.mes > meses[0]}
+          puedeAdelante={hoy !== null && calendario.mes < mesDeFecha(hoy)}
+          resumen={
+            <span className="text-sm text-neutral-500">
+              {escritosDelMes === 0
+                ? "Ninguno escrito este mes"
+                : `${escritosDelMes} ${escritosDelMes === 1 ? "día escrito" : "días escritos"} este mes`}
+            </span>
+          }
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
           {FILTROS.map((f) => (
@@ -116,9 +177,11 @@ export function JournalVista({
 
       {visibles.length === 0 ? (
         <p className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 px-4 py-8 text-center text-sm text-neutral-500">
-          {filtro === "escritos"
-            ? "Todavía no escribiste ninguno."
-            : "Están todos escritos. Bien ahí."}
+          {dias.length === 0
+            ? "Todavía no hay días cargados. Tocá cualquier día del calendario para escribirlo igual."
+            : filtro === "escritos"
+              ? "Todavía no escribiste ninguno."
+              : "Están todos escritos. Bien ahí."}
         </p>
       ) : (
         <ul className="space-y-2">
