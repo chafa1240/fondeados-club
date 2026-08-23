@@ -48,14 +48,33 @@ export function ModalDia({
 }) {
   const [estado, accion] = useFormState<EstadoJournal, FormData>(guardarNota, {});
   const [texto, setTexto] = useState(dia.nota?.notas ?? "");
+  /**
+   * Lo último que está guardado en la base, según lo que sabe esta
+   * pantalla.
+   *
+   * No se compara contra `dia.nota` directo: el servidor tarda un instante
+   * en revalidar, así que apenas guardás la prop todavía trae la nota
+   * vieja y el cartel decía **"Sin guardar" justo después de guardar** —
+   * exactamente el momento en que uno necesita que diga lo contrario.
+   */
+  const [base, setBase] = useState(dia.nota?.notas ?? "");
   const area = useRef<HTMLTextAreaElement>(null);
 
   // Al cambiar de día, el textarea tiene que traer la nota del día nuevo.
   useEffect(() => {
     setTexto(dia.nota?.notas ?? "");
+    setBase(dia.nota?.notas ?? "");
   }, [dia.fecha, dia.nota]);
 
-  const sucio = texto !== (dia.nota?.notas ?? "");
+  // Guardó bien: lo que hay escrito pasa a ser lo guardado.
+  useEffect(() => {
+    if (estado.ok) setBase((b) => (b === texto ? b : texto));
+    // `texto` a propósito fuera de las dependencias: esto tiene que correr
+    // cuando llega la respuesta del servidor, no en cada tecla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  const sucio = texto !== base;
 
   function irA(fecha: string | null) {
     if (!fecha) return;
@@ -119,7 +138,7 @@ export function ModalDia({
 
           <div className="flex items-center gap-3">
             <span className={`text-lg font-bold tabular-nums ${color}`}>
-              {dia.monto === null ? "Sin operar" : plata(dia.monto, 2)}
+              {dia.monto === null ? "Sin resultados" : plata(dia.monto, 2)}
             </span>
             <button
               onClick={cerrar}

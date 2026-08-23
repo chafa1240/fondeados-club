@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { ModalDia } from "./modal-dia";
 import { Calendario } from "@/components/home/calendario";
 import { fechaCorta, plata } from "@/lib/cuentas";
-import { diasDeJournal, vecinos, type DiaJournal, type NotaDia } from "@/lib/journal";
+import {
+  diasDeJournal,
+  vecinos,
+  type CuentaJournal,
+  type DiaJournal,
+  type NotaDia,
+} from "@/lib/journal";
+import type { Tipo } from "@/lib/cuentas";
 import {
   armarMes,
   diasDeTrading,
@@ -32,16 +39,30 @@ const FILTROS: { valor: Filtro; label: string }[] = [
   { valor: "escritos", label: "Escritos" },
 ];
 
+/**
+ * Fondeadas o evaluaciones, igual que en el Home y por la misma razón: un
+ * dólar de fondeada y uno de evaluación no son la misma unidad.
+ *
+ * **Ojo con lo que separa este filtro y lo que no.** Cambia los días que
+ * ves y el número de cada día; **la nota no**, porque la nota es del día y
+ * la jornada es una sola aunque hayas operado los dos tipos en paralelo.
+ * Escribís una vez y la ves con cualquiera de los dos filtros puestos.
+ */
+const TIPOS: { valor: Tipo; label: string }[] = [
+  { valor: "fondeada", label: "Fondeadas" },
+  { valor: "challenge", label: "Evaluaciones" },
+];
+
 export function JournalVista({
   resultados,
   notas,
-  nombres,
+  cuentas,
 }: {
   resultados: Resultado[];
   notas: NotaDia[];
-  /** id de cuenta -> nombre, para el detalle del día. */
-  nombres: Record<string, string>;
+  cuentas: CuentaJournal[];
 }) {
+  const [tipo, setTipo] = useState<Tipo>("fondeada");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [abierto, setAbierto] = useState<string | null>(null);
 
@@ -57,7 +78,21 @@ export function JournalVista({
     setMes((m) => m ?? mesDeFecha(d));
   }, []);
 
-  const diasTrading = useMemo(() => diasDeTrading(resultados), [resultados]);
+  const nombres = useMemo(
+    () => Object.fromEntries(cuentas.map((c) => [c.id, c.nombre])),
+    [cuentas]
+  );
+
+  /** Los resultados del tipo elegido. La nota del día no se filtra: es del día. */
+  const resultadosDelTipo = useMemo(() => {
+    const ids = new Set(cuentas.filter((c) => c.tipo === tipo).map((c) => c.id));
+    return resultados.filter((r) => ids.has(r.cuenta_id));
+  }, [resultados, cuentas, tipo]);
+
+  const diasTrading = useMemo(
+    () => diasDeTrading(resultadosDelTipo),
+    [resultadosDelTipo]
+  );
 
   const dias = useMemo(
     () => diasDeJournal(diasTrading, notas),
@@ -121,7 +156,7 @@ export function JournalVista({
 
   const detalle = useMemo(() => {
     if (!abierto) return [];
-    return resultados
+    return resultadosDelTipo
       .filter((r) => r.fecha === abierto)
       .map((r) => ({
         id: r.id,
@@ -129,7 +164,7 @@ export function JournalVista({
         monto: r.monto,
         notas: r.notas,
       }));
-  }, [abierto, resultados, nombres]);
+  }, [abierto, resultadosDelTipo, nombres]);
 
   return (
     <div className="space-y-4">
@@ -154,6 +189,22 @@ export function JournalVista({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
+          {TIPOS.map((t) => (
+            <button
+              key={t.valor}
+              onClick={() => setTipo(t.valor)}
+              className={`rounded-md px-3 py-1.5 text-sm transition ${
+                tipo === t.valor
+                  ? "bg-neutral-800 text-neutral-100"
+                  : "text-neutral-400 hover:text-neutral-200"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
           {FILTROS.map((f) => (
             <button
@@ -204,7 +255,9 @@ export function JournalVista({
                             : "text-neutral-300"
                     }`}
                   >
-                    {d.monto === null ? "Sin operar" : plata(d.monto)}
+                    {d.monto === null
+                      ? `Sin ${tipo === "fondeada" ? "fondeadas" : "evaluaciones"}`
+                      : plata(d.monto)}
                   </span>
                   {d.entradas > 1 && (
                     <span className="text-xs text-neutral-500">

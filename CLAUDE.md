@@ -500,6 +500,13 @@ tamaño y cuánto ocupa cada usuario— y es la única parte que puede costar
 plata si crece. Tradesyncer los tiene y son la mitad de la gracia, así que
 es el próximo paso natural del journal.
 
+**El journal se separa en Fondeadas / Evaluaciones**, igual que el Home y
+por la misma razón: un dólar de fondeada y uno de evaluación no son la
+misma unidad. Ojo con qué separa ese filtro y qué no: **cambia los días
+que ves y el número de cada día, pero no la nota**. La nota es del día, y
+la jornada es una sola aunque hayas operado los dos tipos en paralelo —
+escribís una vez y la ves con cualquiera de los dos filtros puestos.
+
 **El calendario del mes también está en el journal**, arriba de la lista,
 con un **punto verde** en los días que tienen nota. Es el mismo componente
 que el del Home (`src/components/home/calendario.tsx`), con dos props

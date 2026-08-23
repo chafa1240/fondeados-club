@@ -1,7 +1,7 @@
 import { EncabezadoSeccion } from "@/components/seccion";
 import { JournalVista } from "@/components/journal/journal-vista";
 import { createClient } from "@/lib/supabase/server";
-import type { NotaDia } from "@/lib/journal";
+import type { CuentaJournal, NotaDia } from "@/lib/journal";
 import type { Resultado } from "@/lib/resultados";
 
 // Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
@@ -20,13 +20,10 @@ export default async function JournalPage() {
         .from("journal_dias")
         .select("id, fecha, notas, updated_at")
         .order("fecha", { ascending: false }),
-      supabase.from("cuentas_fondeo").select("id, nombre"),
+      supabase.from("cuentas_fondeo").select("id, nombre, tipo"),
     ]);
 
-  const nombres: Record<string, string> = {};
-  for (const c of (cuentas ?? []) as { id: string; nombre: string }[]) {
-    nombres[c.id] = c.nombre;
-  }
+  const lista = (cuentas ?? []) as CuentaJournal[];
 
   // La tabla del journal es de la migración 013: si todavía no se corrió,
   // la pantalla tiene que decirlo con todas las letras en vez de tirar el
@@ -69,7 +66,7 @@ export default async function JournalPage() {
         <JournalVista
           resultados={(dias ?? []) as Resultado[]}
           notas={(notas ?? []) as NotaDia[]}
-          nombres={nombres}
+          cuentas={lista}
         />
       )}
     </>

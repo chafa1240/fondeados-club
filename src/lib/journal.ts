@@ -12,7 +12,15 @@
  * justamente uno de los que vale la pena escribir.
  */
 
+import type { Tipo } from "./cuentas";
 import type { DiaHome } from "./home";
+
+/** Lo que hace falta de cada cuenta: cómo se llama y de qué tipo es. */
+export type CuentaJournal = {
+  id: string;
+  nombre: string;
+  tipo: Tipo;
+};
 
 /** Una fila de `journal_dias`. */
 export type NotaDia = {
