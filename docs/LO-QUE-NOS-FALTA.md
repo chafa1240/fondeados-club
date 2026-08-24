@@ -14,13 +14,18 @@ adelantada: **hoy no por API, sí por CSV**.
 
 ### Resumen en una tabla
 
+> **Actualizado el 2026-08-23.** Lo que ya se hizo desde que se escribió
+> esta lista: el **calendario mensual**, el **Home**, el **journal por
+> día** (con sus estadísticas) y el **tono claro y oscuro**. Lo demás
+> sigue igual de válido.
+
 | Hueco | Quién lo tiene | Esfuerzo | ¿Vale la pena? |
 |---|---|---|---|
-| Calendario mensual de P&L | Los dos | Chico | **Sí, primero** |
-| Retiros con estado pedido/cobrado | PropTracker | Chico | **Sí** |
+| ~~Calendario mensual de P&L~~ | Los dos | Chico | ✅ **Hecho** (dentro del Home) |
+| Retiros con estado pedido/cobrado | PropTracker | Chico | **Sí, es el que sigue después del 7b** |
 | ROI por firm y por cuenta | PropTracker | Chico | **Sí** |
-| Daily loss limit | Los dos | Medio | **Sí** |
-| Home / pantalla de inicio | Los dos | Medio | Sí (ya es el Paso 7) |
+| Daily loss limit | Los dos | Medio | **Sí, el próximo** |
+| ~~Home / pantalla de inicio~~ | Los dos | Medio | ✅ **Hecho** |
 | Días mínimos de trading | PropTracker | Chico | Sí, junto con el daily loss |
 | Regla de consistencia | PropTracker | Chico | Sí, la columna ya existe |
 | Import CSV | Trading Control | Medio | Sí, ver Parte 2 |
@@ -31,7 +36,7 @@ adelantada: **hoy no por API, sí por CSV**.
 | Notas del día / revisión semanal | Trading Control | Chico | Quizás |
 | Etiquetas de disciplina | Trading Control | Medio | Quizás, ver abajo |
 | Métricas de trading (PF, win rate) | Los dos | Grande | No sin trades |
-| Journal trade por trade | Los dos | Grande | **No**, decidido |
+| Journal trade por trade | Los dos | Grande | **No**, decidido — pero **el journal por día ya está hecho** |
 | Coach con IA | PropTracker | Grande | No por ahora |
 | Sync automático con broker | PropTracker | Grande | **No se puede**, ver Parte 2 |
 | Gráfico y calendario económico | PropTracker | Medio | **No**, es relleno |
@@ -133,6 +138,10 @@ Queda como candidata, no como decisión.
 
 - **Journal trade por trade** (instrumento, entrada, salida, replay). Es
   otro producto. Decidido desde el principio y el research no lo cambia.
+  **Ojo con no confundirlo con lo que sí hicimos**: el journal **por día**
+  (Paso 7f, 2026-08-23) encaja con los datos que ya tenemos y es la parte
+  que la gente realmente usa — nadie escribe una reflexión por operación,
+  escribe una por sesión.
 - **Métricas tipo profit factor y win rate por operación**: necesitan lo
   anterior.
 - **Gráfico de TradingView y calendario económico** (el "Intelligence" de

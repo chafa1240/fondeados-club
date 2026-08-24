@@ -45,100 +45,87 @@ queda como antecedente.
   gratis alcanza para el MVP.
 - Dominio a comprar aparte (ej. fondeadosclub.com, ~10-15 USD/año).
 
-## Estado actual (actualizado 2026-08-09)
-- Cuenta de GitHub creada.
-- Cuenta de Supabase creada (login con GitHub).
-- Proyecto de Supabase creado: nombre `fondeados-club`, región West US
-  (Oregon), motor Postgres estándar (NO OrioleDB). Data API habilitada,
-  "Automatically expose new tables" DESACTIVADO (a propósito, para exponer
-  tablas de una en una cuando ya tengan RLS), "Enable automatic RLS"
-  ACTIVADO (cada tabla nueva nace bloqueada hasta que le pongamos la regla
-  de "cada usuario ve solo lo suyo").
-- Repo git local creado y pusheado a GitHub: `github.com/chafa1240/fondeados-club`
-  (2026-08-16). Todavía NO hay código de la app (ni Next.js todavía).
-- Decisión de negocio para el MVP: **todo lo que se construya ahora es
-  gratis**. La división freemium (features pagas) se implementa recién
-  después de sacar el MVP, no antes.
-- Hay una carpeta `Dashboards/` en el proyecto con capturas de referencia
-  de 3 productos: "Lea" (dashboard más pulido y completo), PipBack, y
-  Tradesyncer ("syncer"). Se usaron para definir el diseño de las
-  secciones (ver más abajo).
+## Estado actual (2026-08-23)
 
-## Próximos pasos (cuando el usuario lo pida)
-1. Terminar de definir la sección Home (resumen de Cuentas + Funding
-   Manager, ver abajo).
-2. ~~Definir tablas concretas en Supabase~~ — hecho. `supabase/schema.sql`
-   corrido con éxito en el proyecto `fondeados-club` (tablas cuentas_fondeo,
-   gastos, payouts + RLS + trigger, ya creadas).
-3. ~~Crear repo (git init + GitHub)~~ — hecho. Repo `github.com/chafa1240/fondeados-club`,
-   con `CLAUDE.md`, `supabase/schema.sql` y `.gitignore` ya pusheados a `main`.
-4. ~~Scaffold de Next.js conectado a Supabase~~ — hecho (2026-08-16).
-   Next.js 14 + TypeScript + Tailwind + App Router, clientes de Supabase
-   en `src/lib/supabase/client.ts` (browser) y `server.ts` (server
-   components). `npm install` corrido, `.env.local` con la anon key
-   configurado, `npm run dev` probado y funcionando en
-   `localhost:3000`.
-5. Primera pantalla real: alta de cuentas fondeadas + gastos.
+**La app está publicada y en uso** en https://fondeados-club.vercel.app
+(Vercel Hobby, deploy automático en cada push a `main`). Registro
+**cerrado**: se invita desde Supabase → Authentication → Users.
 
-**Plan completo hasta el MVP (y fases de monetización y app móvil):
-ver `ROADMAP.md`.**
+Repo: `github.com/chafa1240/fondeados-club`. Proyecto de Supabase:
+`fondeados-club`, región West US (Oregon), Postgres estándar (NO
+OrioleDB). **"Automatically expose new tables" está DESACTIVADO** y
+"Enable automatic RLS" ACTIVADO, los dos a propósito: cada tabla nueva
+nace bloqueada y hay que exponerla a mano (ver *Migraciones* más abajo —
+es el error que más veces nos hizo perder tiempo).
 
-Pasos 1 y 2 del roadmap ya están hechos (2026-08-16):
-- **Auth funcionando** (email + contraseña con confirmación por email,
-  middleware protegiendo rutas privadas).
-- **App publicada en https://fondeados-club.vercel.app** (Vercel plan
-  Hobby, deploy automático en cada push a `main`). Registro **cerrado**
-  por ahora: se invita desde Supabase → Authentication → Users.
+Las cuatro secciones están hechas y funcionando:
 
-Pasos 3 y 4 también hechos (2026-08-16):
-- **Layout general**: menú Home / Funding Manager / Cuentas, header con
-  email + salir, `<AdSlot />` reservados (hoy no ocupan nada).
-- **Sección Cuentas completa**: tarjetas con estado, balance, variación y
-  anillo de % al payout; modal de alta/edición con drawdown que se calcula
-  solo entre % y $; cambiar estado, archivar, eliminar; filtros
-  Activas/Archivadas y por Firm; nombre auto-sugerido PA1/PA2.
-  **El balance actual se carga a mano** (editable en línea desde la
-  tarjeta), no se deduce de los payouts.
-  Los cálculos viven en `src/lib/cuentas.ts`, separados de las pantallas,
-  para reusarlos en la app móvil más adelante.
+- **Cuentas** — tarjetas con estado, balance, variación y anillo de % al
+  payout; alta/edición con drawdown en tres modos; resultados diarios;
+  retiros; curva de balance vs. piso.
+- **Funding Manager** — invertido, cobrado, neto, ROI, retiro promedio y
+  costo por fondeada; cuatro gráficos; lista de movimientos con filtros.
+- **Home** — números del día, calendario mensual, avisos y cuentas en
+  juego, con los modos Trading / Flujo de caja.
+- **Journal** — una nota por día, calendario, estadísticas y carga de
+  resultados desde el propio día.
 
-**Rediseño del drawdown** hecho el 2026-08-17 (Paso 4c del roadmap):
-modos estático / EOD / trailing, congelamiento del piso y pico histórico.
-Está en la sección **Drawdown** al final de este archivo.
-`supabase/008_drawdown_trailing.sql` **ya se corrió** en Supabase
-(2026-08-17) y se verificó en la app con las cuentas reales de Apex. La
-**009** corrige el drawdown que la 008 asumió mal (5% en vez de 4%). El
-**máximo del día** (el otro pedazo del mismo diseño) entra recién con el
-Paso 5b, porque vive en la fila diaria.
+Más el **tono claro y oscuro** (2026-08-22).
 
-**Paso 5 (gastos y movimientos) y Paso 5b (resultados diarios) hechos el
-2026-08-17/18.** El Funding Manager tiene la lista de movimientos con
-filtros, y el balance de cada cuenta **ya no se guarda: se calcula** con
-los resultados diarios y los retiros. Detalle en `ROADMAP.md` y en la
-sección **Resultados diarios** de este archivo.
+**Todas las migraciones (`supabase/001` a `013`) están corridas** en el
+proyecto de Supabase.
 
-**Paso 6 (Funding Manager con gráficos) hecho el 2026-08-18.** Cards de
-resumen con ROI, retiro promedio y costo por fondeada; cuatro gráficos
-(invertido vs. cobrado, neto acumulado, gastos por categoría, cuentas por
-firm); filtros separados para el resumen y el historial; y el gráfico de
-**balance vs. piso** por cuenta, que se abre desde la tarjeta. En el mismo
-tramo entraron la lista de firms partida en Futuros / Forex con buscador y
-la sugerencia de modo de drawdown según el mercado. Detalle en
-`ROADMAP.md` (Pasos 6 y 6b).
+El paso a paso completo, con qué entró en cada tramo y qué falta, está en
+**`docs/ROADMAP.md`**.
 
-**Paso 5c (varias entradas por día) hecho el 2026-08-20.** Salió de usar la
-app: dos trades el mismo día en la misma evaluación y el segundo pisaba al
-primero. Migración `012_varias_entradas_por_dia.sql`. Detalle en la
-sección **Resultados diarios** de este archivo.
+**Decisión de negocio que sigue vigente**: todo lo que se construya ahora
+es **gratis**. La división freemium se implementa después del MVP.
 
-La migración 012 **ya se corrió** en Supabase (2026-08-22).
+## Cómo trabajar en este proyecto
 
-**Paso 7 (Home) hecho el 2026-08-22**, con el **calendario mensual**
-adentro: los dos candidatos que estaban abiertos se resolvieron de una
-sola vez, porque el lugar natural del calendario es el cuerpo del Home.
-Detalle en la sección **HOME** de este archivo y en `ROADMAP.md`.
+Escrito el 2026-08-23, cuando el trabajo pasó a hacerse desde **Claude
+Code** corriendo en la máquina del usuario (antes se hacía desde Cowork,
+con un puente que tenía sus propias limitaciones — ya no aplican).
 
-### Próximo paso
+**Verificar antes de dar algo por hecho.** `npx tsc --noEmit` para los
+tipos y `npm run build` para el build real, que es el que corre Vercel.
+Si el build pasa local, el deploy pasa.
+
+**El dev server**: `npm run dev` en `localhost:3000`. Si el puerto está
+tomado Next se va al 3001 **y sigue corriendo el proceso viejo con el
+código viejo** — mirar siempre en qué puerto está la ventana que se está
+probando.
+
+**Tailwind se lee una sola vez, al arrancar.** Tocar
+`tailwind.config.ts` obliga a reiniciar `npm run dev`; los cambios de
+`globals.css` y de clases se toman en caliente. Perdimos un rato largo
+con esto.
+
+**Migraciones**: los archivos viven en `supabase/`, numerados. **Los
+corre el usuario a mano** en el SQL Editor de Supabase — no hay CLI ni
+migración automática. Cada archivo tiene que poder correrse dos veces sin
+romper (`if not exists`, `drop policy if exists`).
+
+⚠️ **Toda tabla nueva necesita su `grant` a `authenticated`**, además de
+RLS y las políticas. Sin eso la tabla existe, las reglas están bien, y la
+API igual devuelve `permission denied for table X`. Pasó con la 013. Ver
+`supabase/exponer_tablas.sql`.
+
+**Los cálculos van en `src/lib/`, nunca dentro de las pantallas** —
+`cuentas.ts`, `resultados.ts`, `movimientos.ts`, `home.ts`, `journal.ts`,
+`estadisticas.ts`, `tema.ts`. Se reusan entre secciones y más adelante en
+la app móvil, y son lo que se puede leer para entender el negocio sin
+leer JSX.
+
+**Los gráficos**: colores validados, no elegidos a ojo (ver *Las
+estadísticas del journal*). Los grises van por variables CSS para que
+funcionen en los dos tonos.
+
+**Antes de tocar cálculos**, leer las dos secciones largas de este
+archivo: **Drawdown** y **Resultados diarios**. Son las invariantes que
+es fácil romper sin darse cuenta.
+
+## Próximo paso
 
 **Paso 7b — reglas de la cuenta**: pérdida máxima diaria, días mínimos de
 trading y regla de consistencia (la columna `regla_consistencia` existe
@@ -148,8 +135,9 @@ sola forma de quemar una cuenta —tocar el piso del drawdown— y no ve la
 otra, que es pasarse de la pérdida diaria.
 
 Después vienen el 7c (retiros con estado pedido/cobrado y ROI por firm),
-el 7d (import CSV y export) y el 7e (los baratos: modo privacidad, datos
-de ejemplo, objetivo mensual).
+el 7d (import CSV y export), el 7e (los baratos: modo privacidad, datos
+de ejemplo, objetivo mensual) y los **adjuntos del journal**, que
+necesitan Supabase Storage.
 
 La lista completa de huecos, priorizada y con esfuerzo estimado, está en
 `docs/LO-QUE-NOS-FALTA.md`.
@@ -168,23 +156,27 @@ La lista completa de huecos, priorizada y con esfuerzo estimado, está en
 - **`docs/referencias-diseno/`** — capturas de Lea, PipBack, Tradesyncer,
   PropTracker y Trading Control.
 
-**Notas técnicas del entorno** (para no volver a tropezar):
+**Notas de código** (dónde vive cada cosa):
 
-- `npm run build` **no corre** desde el entorno de Claude: el
-  `node_modules` está instalado para Windows y el sandbox no tiene red. El
-  build real lo hace Vercel al pushear.
-- La verificación se hace con **`npx tsc --noEmit`**, que sí funciona
-  (~20s). **`npx eslint` se cuelga** sobre la carpeta montada: no vale la
-  pena intentarlo.
-- El puente a la máquina del usuario **no puede borrar archivos**, así que
-  cada comando de git deja un `.git/index.lock` y un `.git/HEAD.lock`
-  huérfanos que rompen el git siguiente. Después de cada commit hay que
-  hacer `mv .git/*.lock _to_delete/`. Esa carpeta está en `.gitignore` y
-  la borra el usuario a mano desde Windows.
-- **El push lo hace el usuario** desde PowerShell: desde el entorno de
-  Claude falla con un 403 del proxy. Los commits van con
-  `git -c user.name="Teodoro Chafatinos" -c user.email="teodorochafa@gmail.com"`,
-  porque el puente no tiene identidad configurada.
+- `src/app/(app)/` — las cuatro páginas: `page.tsx` (Home),
+  `cuentas/`, `funding-manager/`, `journal/`. Todas son **server
+  components** que traen los datos y se los pasan a una "vista" cliente.
+  Van con `export const dynamic = "force-dynamic"`: cada usuario ve solo
+  lo suyo por RLS, así que no hay nada que cachear.
+- `src/app/(app)/*/actions.ts` — las server actions. Las de resultados
+  diarios (`cuentas/resultados-actions.ts`) las usan **dos pantallas**,
+  Cuentas y Journal: el alta corre la semilla y deja un solo máximo por
+  día, y tener dos caminos para escribir lo mismo es la forma más rápida
+  de que empiecen a diferir.
+- `src/lib/` — los cálculos, sin JSX. Ver *Cómo trabajar en este
+  proyecto*.
+- `src/components/` — una carpeta por sección, más `nav.tsx`,
+  `seccion.tsx`, `selector-tema.tsx` y `ad-slot.tsx`. El calendario vive
+  en `components/home/calendario.tsx` y lo usan el Home y el Journal.
+- `supabase/` — las migraciones numeradas y `exponer_tablas.sql`.
+
+**Historial**: el detalle de qué entró en cada tramo y en qué orden está
+en `docs/ROADMAP.md`, no acá.
 
 ## Monetización (definido 2026-08-16)
 Dos fuentes de ingreso, ambas **post-MVP**:
@@ -212,6 +204,19 @@ español, después el selector de idioma.
 - El usuario prefiere ir paso a paso y confirmando antes de que se arranque
   a ejecutar cosas — no asumir luz verde de una charla de idea a "empezar a
   correr comandos".
+- **Cuando una decisión tiene más de un camino razonable, preguntar antes
+  de codear**, con las opciones y el costo de cada una. Varias de las
+  decisiones mejores del proyecto (que el Home abra en fondeadas, que el
+  journal sea sección aparte, que no exista un "Todas" en trading) salieron
+  de esa conversación y no del primer impulso.
+- **Decir cuando algo está mal, aunque lo haya pedido el usuario.** El
+  ejemplo canónico: sumar fondeadas y evaluaciones en un solo número de
+  trading se pidió, se hizo, y al ver los datos reales quedó claro que el
+  número no significaba nada. Mejor que aparezca en la charla que tres
+  semanas después.
+- **Escribir en el código el porqué, no el qué.** Los comentarios de este
+  proyecto explican qué error evita cada decisión; por eso se puede volver
+  meses después y no deshacerlas sin querer.
 
 ## Diseño de secciones (definido 2026-08-09)
 La app tiene 3 secciones principales: **Home**, **Funding Manager**,

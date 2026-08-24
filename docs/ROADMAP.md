@@ -4,22 +4,30 @@ Definido 2026-08-16, reordenado el mismo día para publicar temprano. Se
 sigue **paso a paso**, confirmando antes de ejecutar cada uno. Cada paso
 termina en algo que se pueda ver funcionando.
 
-## Dónde estamos (2026-08-22)
+## Dónde estamos (2026-08-23)
 
-Hechos los pasos **1 a 7** más los intermedios (4b, 4c, 5b, 5c, 6b): auth,
-deploy, layout, Cuentas con drawdown en tres modos, gastos y movimientos,
-resultados diarios con balance calculado, el Funding Manager con gráficos
-y el **Home con el calendario mensual adentro** (el Paso 6c se resolvió
-dentro del 7, ver abajo).
+Hechos los pasos **1 a 7** más los intermedios (4b, 4c, 5b, 5c, 6b, 6c) y
+el **7f (journal)**: auth, deploy, layout, Cuentas con drawdown en tres
+modos, gastos y movimientos, resultados diarios con balance calculado, el
+Funding Manager con gráficos, el **Home** con el calendario mensual
+adentro, el **tono claro y oscuro**, y el **Journal**.
 
-La migración `012_varias_entradas_por_dia.sql` **ya se corrió** en Supabase
-(2026-08-22).
+**Todas las migraciones (001 a 013) están corridas** en Supabase.
+
+Las cuatro secciones del menú están terminadas y en uso: Home, Funding
+Manager, Cuentas y Journal.
 
 **Próximo paso**: el **Paso 7b (reglas de la cuenta: daily loss limit,
 días mínimos, consistencia)**, que de todos los huecos detectados es el
 único que le puede costar plata a un usuario. Los pasos 7b a 7e salieron
 del research de competencia del 2026-08-20 (`docs/COMPETIDORES.md` y
-`docs/LO-QUE-NOS-FALTA.md`).
+`docs/LO-QUE-NOS-FALTA.md`); el 7f salió de mirar el journaling de
+Tradesyncer en vivo con el usuario.
+
+**Dónde se trabaja**: desde el 2026-08-23 el desarrollo se hace con
+**Claude Code** en la máquina del usuario. Las notas de entorno viejas
+(puente de Cowork, locks de git, "el push lo hace el usuario") ya no
+aplican — ver *Cómo trabajar en este proyecto* en `CLAUDE.md`.
 
 ---
 
@@ -499,6 +507,52 @@ Del research, cosas chicas que suman más de lo que cuestan:
   cartel que aclare que no se guarda. Resuelve el peor momento de un
   producto así, que es la pantalla vacía del primer día.
 - **Objetivo mensual** de P&L y **notas del día**.
+
+### Paso 7f — Journal ✅ HECHO (2026-08-23)
+Salió de mirar en vivo el journaling de Tradesyncer con el usuario. Es una
+**nota por día**, en su propia sección.
+
+Lo que se copió y lo que no: casi todo lo que hace lindo su tablero —win
+rate, profit factor, curva intradía, tabla de operaciones— sale del **sync
+de trades** con el broker. Nosotros tenemos un número por día cargado a
+mano, así que se copió **la forma, no el contenido**. Y la forma que
+importa no son las métricas: es el **estado escrito / sin escribir**, que
+es lo que hace que uno vuelva a escribir.
+
+Qué entró:
+
+- Sección **Journal** con lista de días, calendario del mes (con punto
+  verde en los días escritos) y filtro Fondeadas / Evaluaciones.
+- Modal del día con las entradas cuenta por cuenta, el campo de notas y
+  flechas ‹ › para pasar de día sin cerrar.
+- **Estadísticas**: racha de escritura, días en verde, día promedio, mejor
+  y peor día, resultado por día de la semana y **"¿escribir te sirve?"**
+  —el promedio del día después de escribir contra el día después de no
+  escribir—, que ningún competidor tiene.
+- **Cargar resultados desde el journal**, eligiendo varias cuentas a la
+  vez (replicar es la forma normal de operar), y borrar entradas desde
+  ahí.
+- Desde Cuentas: botón **"Escribir el día"** y una invitación al guardar
+  un día.
+- Migración `013_journal.sql` (tabla `journal_dias`).
+
+**Falta**: los **adjuntos** (capturas de los gráficos), que en Tradesyncer
+son la mitad de la gracia. Necesitan Supabase Storage —bucket, políticas,
+límites de tamaño y cuánto ocupa cada usuario— y es la única parte que
+puede costar plata si crece. Es el próximo paso natural del journal.
+
+Detalle completo en la sección **Journal** de `CLAUDE.md`.
+
+**Resultado visible:** escribís qué pasó cada día y ves cuáles te faltan.
+
+### Paso 7g — Tono claro y oscuro ✅ HECHO (2026-08-22)
+Botón en el header que cicla Sistema → Claro → Oscuro, con la elección
+guardada. **No se usaron las variantes `dark:` de Tailwind**: se redefinió
+la paleta con variables CSS, así las ~600 clases de color de la app no se
+tocaron y las pantallas nuevas tampoco tienen que duplicarlas. Detalle en
+`CLAUDE.md`, sección *Tono claro y oscuro*.
+
+**Resultado visible:** la app se puede usar de día sin quemarse los ojos.
 
 ### Paso 8 — Pulido, dominio y primeros usuarios
 - Comprar el dominio (ej. `fondeadosclub.com`, ~10-15 USD/año) y apuntarlo
