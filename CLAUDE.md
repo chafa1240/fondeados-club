@@ -81,6 +81,20 @@ El paso a paso completo, con qué entró en cada tramo y qué falta, está en
 **Decisión de negocio que sigue vigente**: todo lo que se construya ahora
 es **gratis**. La división freemium se implementa después del MVP.
 
+## Región de Vercel y latencia (2026-08-27)
+
+`vercel.json` fija las funciones en **`pdx1` (Oregon)** a propósito: la base
+de Supabase está en West US (Oregon) y la región por defecto de Vercel es
+`iad1` (Washington DC). Sin eso, cada navegación cruzaba Estados Unidos
+varias veces — `getUser()` del middleware, `getUser()` del layout y las 4
+queries del Home — y con el cold start del plan Hobby el primer login
+después de un rato tardaba tanto que **parecía colgado**: pasó el 2026-08-27
+al dar de alta el primer usuario nuevo, y se perdió un buen rato buscando un
+bug de auth que no existía.
+
+Si algún día se muda el proyecto de Supabase de región, hay que mover esta
+también; quedan al lado o vuelve la demora.
+
 ## Cómo trabajar en este proyecto
 
 Escrito el 2026-08-23, cuando el trabajo pasó a hacerse desde **Claude

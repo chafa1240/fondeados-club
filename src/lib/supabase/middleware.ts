@@ -6,6 +6,25 @@ type CookieAGuardar = { name: string; value: string; options: CookieOptions };
 // Rutas públicas: se pueden ver sin estar logueado.
 const RUTAS_PUBLICAS = ["/login", "/registro", "/recuperar", "/nueva-password", "/auth"];
 
+/**
+ * Un redirect con las cookies que Supabase acaba de refrescar.
+ *
+ * `NextResponse.redirect()` crea un response **nuevo y vacío**: las cookies
+ * que `getUser()` dejó en `supabaseResponse` (el token recién refrescado) no
+ * viajan solas. Si no se copian, el navegador se queda con el token viejo,
+ * que Supabase ya invalidó al refrescarlo; la request siguiente llega sin
+ * sesión válida, el middleware manda al login, ahí ve la cookie y manda a la
+ * app, y vuelta a empezar: un loop /login -> / -> /login que en pantalla se
+ * ve como una página cargando para siempre, no como un error.
+ */
+function redirigirCon(url: URL, conCookies: NextResponse) {
+  const respuesta = NextResponse.redirect(url);
+  for (const cookie of conCookies.cookies.getAll()) {
+    respuesta.cookies.set(cookie);
+  }
+  return respuesta;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -42,14 +61,14 @@ export async function updateSession(request: NextRequest) {
   if (!user && !esPublica) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirigirCon(url, supabaseResponse);
   }
 
   // Con sesión y entrando al login/registro -> a la app.
   if (user && (path === "/login" || path === "/registro")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return redirigirCon(url, supabaseResponse);
   }
 
   return supabaseResponse;
