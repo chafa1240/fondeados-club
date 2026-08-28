@@ -174,13 +174,14 @@ export function JournalVista({
         id: r.id,
         cuenta: nombres[r.cuenta_id] ?? "—",
         monto: r.monto,
+        sentido: r.sentido,
         notas: r.notas,
       }));
   }, [abierto, resultadosDelTipo, nombres]);
 
   return (
     <div className="space-y-4">
-      <Estadisticas diasTrading={diasTrading} diasJournal={dias} />
+      <Estadisticas diasTrading={diasTrading} entradas={resultadosDelTipo} />
 
       {calendario && (
         <Calendario

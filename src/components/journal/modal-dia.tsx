@@ -4,12 +4,15 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarNota, type EstadoJournal } from "@/app/(app)/journal/actions";
 import {
+  corregirEntrada,
   eliminarResultado,
   guardarEnVariasCuentas,
   type EstadoForm,
 } from "@/app/(app)/cuentas/resultados-actions";
 import { enJuego, fechaCorta, plata, trailea, type Tipo } from "@/lib/cuentas";
 import type { CuentaJournal, DiaJournal } from "@/lib/journal";
+import { SENTIDO_INFO, type Sentido } from "@/lib/resultados";
+import { SelectorSentido } from "@/components/selector-sentido";
 
 /**
  * El día abierto: lo que pasó arriba, lo que escribís abajo.
@@ -70,6 +73,9 @@ function AltaResultado({
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [monto, setMonto] = useState("");
   const [maximo, setMaximo] = useState("");
+  // No se limpia al guardar, igual que las cuentas elegidas: el segundo
+  // trade del día suele ir para el mismo lado y en las mismas cuentas.
+  const [sentido, setSentido] = useState<Sentido | null>(null);
 
   // Cambiar de día limpia el formulario: cargar un resultado en la fecha
   // equivocada es de los errores más caros y más fáciles de cometer.
@@ -177,6 +183,8 @@ function AltaResultado({
       </div>
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
+        <SelectorSentido valor={sentido} onCambiar={setSentido} compacto />
+
         <label className="w-32">
           <span className="sr-only">Resultado en dólares</span>
           <input
@@ -223,23 +231,105 @@ function AltaResultado({
 }
 
 /**
- * Una entrada del día, con su borrado.
+ * Una entrada del día, con su corrección y su borrado.
  *
- * Si se puede cargar desde acá, se tiene que poder deshacer desde acá: un
- * monto en la cuenta equivocada obligaba a ir hasta Cuentas, buscar la
- * tarjeta y abrir otro modal para arreglar algo que se hizo en dos
- * segundos.
+ * Si se puede cargar desde acá, se tiene que poder arreglar desde acá: un
+ * monto en la cuenta equivocada, o un trade al que le falta el lado,
+ * obligaba a ir hasta Cuentas, buscar la tarjeta y abrir otro modal para
+ * arreglar algo que se hizo en dos segundos.
+ *
+ * Se editan **el monto y el lado, nada más**. El máximo del día y el %
+ * siguen siendo del formulario grande de Cuentas: el máximo es del día y
+ * no de la entrada, y el % lo recalcula la action con el tamaño de la
+ * cuenta. Un editor a medias que igual escribe todos los campos es peor
+ * que no tener editor — borra en silencio lo que no muestra.
  */
 function FilaEntrada({
   entrada,
 }: {
-  entrada: { id: string; cuenta: string; monto: number; notas: string | null };
+  entrada: {
+    id: string;
+    cuenta: string;
+    monto: number;
+    sentido: Sentido | null;
+    notas: string | null;
+  };
 }) {
   const [borrando, empezar] = useTransition();
+  const [editando, setEditando] = useState(false);
+  const [estado, accion] = useFormState<EstadoForm, FormData>(
+    corregirEntrada,
+    {},
+  );
+
+  const [monto, setMonto] = useState(String(entrada.monto));
+  const [sentido, setSentido] = useState<Sentido | null>(entrada.sentido);
+
+  // Al guardar, la fila vuelve a modo lectura. El valor nuevo llega solo
+  // por el revalidate del server.
+  useEffect(() => {
+    if (estado.ok) setEditando(false);
+  }, [estado.ok]);
+
+  if (editando) {
+    return (
+      <li className="py-1.5">
+        <form action={accion} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="id" value={entrada.id} />
+
+          <span className="w-full text-xs text-neutral-500 sm:w-auto sm:flex-1">
+            {entrada.cuenta}
+          </span>
+
+          <label className="w-28">
+            <span className="sr-only">Resultado</span>
+            <input
+              name="monto"
+              inputMode="decimal"
+              autoFocus
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm outline-none transition focus:border-emerald-500"
+            />
+          </label>
+
+          <SelectorSentido valor={sentido} onCambiar={setSentido} />
+
+          <GuardarEntrada />
+
+          <button
+            type="button"
+            onClick={() => {
+              setMonto(String(entrada.monto));
+              setSentido(entrada.sentido);
+              setEditando(false);
+            }}
+            className="text-xs text-neutral-500 transition hover:text-neutral-200"
+          >
+            Cancelar
+          </button>
+
+          {estado.error && (
+            <p className="w-full text-xs text-rose-400">{estado.error}</p>
+          )}
+        </form>
+      </li>
+    );
+  }
 
   return (
     <li className="flex items-center justify-between gap-3 py-1.5">
       <span className="min-w-0">
+        {entrada.sentido && (
+          <span
+            className={`mr-1.5 text-xs ${
+              entrada.sentido === "long" ? "text-emerald-500" : "text-rose-500"
+            }`}
+            title={SENTIDO_INFO[entrada.sentido].label}
+          >
+            {SENTIDO_INFO[entrada.sentido].flecha}
+          </span>
+        )}
         <span className="text-neutral-300">{entrada.cuenta}</span>
         {entrada.notas && (
           <span className="ml-2 text-xs text-neutral-500">{entrada.notas}</span>
@@ -258,6 +348,13 @@ function FilaEntrada({
         >
           {plata(entrada.monto, 2)}
         </span>
+        <button
+          type="button"
+          onClick={() => setEditando(true)}
+          className="text-xs text-neutral-500 transition hover:text-neutral-200"
+        >
+          Corregir
+        </button>
         <button
           type="button"
           disabled={borrando}
@@ -279,6 +376,20 @@ function FilaEntrada({
         </button>
       </span>
     </li>
+  );
+}
+
+function GuardarEntrada() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-50"
+    >
+      {pending ? "Guardando…" : "Guardar"}
+    </button>
   );
 }
 
@@ -308,7 +419,13 @@ export function ModalDia({
 }: {
   dia: DiaJournal;
   /** Lo que se cargó ese día, cuenta por cuenta. */
-  detalle: { id: string; cuenta: string; monto: number; notas: string | null }[];
+  detalle: {
+    id: string;
+    cuenta: string;
+    monto: number;
+    sentido: Sentido | null;
+    notas: string | null;
+  }[];
   anterior: string | null;
   siguiente: string | null;
   onCerrar: () => void;

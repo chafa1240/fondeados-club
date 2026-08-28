@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { SelectorSentido } from "@/components/selector-sentido";
 import {
   eliminarResultado,
   guardarResultado,
@@ -19,9 +20,11 @@ import {
   agruparPorDia,
   entradasDelDia,
   maximoDelDia,
+  SENTIDO_INFO,
   montoDeResultado,
   pctDeResultado,
   type Resultado,
+  type Sentido,
 } from "@/lib/resultados";
 
 const INPUT =
@@ -89,6 +92,16 @@ function FilaEntrada({
       }`}
     >
       <div className="min-w-0">
+        {entrada.sentido && (
+          <span
+            className={`mr-1.5 text-xs ${
+              entrada.sentido === "long" ? "text-emerald-500" : "text-rose-500"
+            }`}
+            title={SENTIDO_INFO[entrada.sentido].label}
+          >
+            {SENTIDO_INFO[entrada.sentido].flecha}
+          </span>
+        )}
         <Monto valor={entrada.monto} clase="text-sm" />
         {entrada.notas && (
           <span className="ml-2 text-xs text-neutral-500">{entrada.notas}</span>
@@ -189,6 +202,7 @@ export function ModalResultado({
   const [monto, setMonto] = useState("");
   const [pct, setPct] = useState("");
   const [notas, setNotas] = useState("");
+  const [sentido, setSentido] = useState<Sentido | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   /**
    * Se prende al guardar un día y se apaga si decís que no.
@@ -213,6 +227,8 @@ export function ModalResultado({
     setMonto("");
     setPct("");
     setNotas("");
+    // El lado NO se limpia: el segundo trade del día suele ir para el
+    // mismo lado, igual que las cuentas elegidas en el journal.
   }, []);
 
   /** Hay algo tipeado que todavía no se guardó. */
@@ -255,6 +271,7 @@ export function ModalResultado({
     setMonto(String(entrada.monto));
     setPct(entrada.pct !== null ? String(entrada.pct) : "");
     setNotas(entrada.notas ?? "");
+    setSentido(entrada.sentido ?? null);
   }
 
   function cambiarMonto(v: string) {
@@ -436,6 +453,17 @@ export function ModalResultado({
               </span>
             </label>
           )}
+
+          <div className="block">
+            <span className="mb-1.5 block text-sm text-neutral-300">
+              Long o short
+            </span>
+            <SelectorSentido valor={sentido} onCambiar={setSentido} />
+            <span className="mt-1 block text-xs text-neutral-500">
+              Opcional. Si el número es el neto de un día en que operaste
+              para los dos lados, dejalo sin marcar.
+            </span>
+          </div>
 
           <label className="block">
             <span className="mb-1.5 block text-sm text-neutral-300">Notas</span>

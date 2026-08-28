@@ -11,30 +11,46 @@ import {
   type Categoria,
   TIPO_MOVIMIENTO_INFO,
   acumuladoEnTiempo,
+  curvaCapital,
+  fondeadasEnGestion,
   etiquetaMes,
   mesDe,
   mesesDe,
   movimientosDe,
+  passRate,
   porCategoria,
   porFirm,
   totales,
+  type CuentaCapital,
   type CuentaMovimientos,
   type Gasto,
   type Movimiento,
   type TipoMovimiento,
 } from "@/lib/movimientos";
+import { Carrusel } from "@/components/carrusel";
+import { GraficoCapital } from "./grafico-capital";
 import {
   GraficoAcumulado,
   GraficoCategorias,
   GraficoFirms,
   Panel,
 } from "./graficos";
+import type { CostoFijo } from "@/lib/costos-fijos";
+import { CostosFijosPanel } from "./costos-fijos-panel";
 import { ModalCampoCuenta } from "./modal-campo-cuenta";
 import { ModalGasto, type CuentaBreve } from "./modal-gasto";
 import { ModalRetiro } from "./modal-retiro";
 
 const SELECT =
   "rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm outline-none transition focus:border-neutral-600";
+
+/**
+ * Cada gráfico ocupa media fila en escritorio y una entera en el celular.
+ * El `-0.375rem` es la mitad del `gap-3` del carrusel: sin descontarlo,
+ * dos tarjetas al 50% no entran juntas y siempre se ve un pedazo de la
+ * tercera.
+ */
+const TARJETA = "w-full shrink-0 snap-start sm:w-[calc(50%-0.375rem)]";
 
 /** Cuántos movimientos se muestran de entrada, y cuántos suma "Ver más". */
 const TANDA = 20;
@@ -59,7 +75,10 @@ function Total({
   const [verAyuda, setVerAyuda] = useState(false);
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    /* Ancho fijo porque viven en el carrusel: si se estiraran, cada
+       tarjeta ocuparía lo que le pida su título y la fila quedaría
+       despareja. */
+    <div className="w-44 shrink-0 snap-start self-start rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:w-48">
       <div className="flex items-center gap-1.5">
         <p className="text-xs uppercase tracking-wide text-neutral-500">
           {label}
@@ -136,6 +155,11 @@ function Fila({
         {mov.categoria && (
           <span className="block text-xs text-neutral-500">
             {CATEGORIA_INFO[mov.categoria].label}
+            {/* De dónde salió: es un gasto normal (se edita y se borra),
+                pero lo creó un costo fijo y conviene que se vea. */}
+            {mov.costoFijoId && (
+              <span className="ml-1.5 text-neutral-600">· recurrente</span>
+            )}
           </span>
         )}
       </td>
@@ -587,12 +611,13 @@ export function MovimientosVista({
   retiros,
   cuentas,
   fondeadas,
+  costosFijos,
 }: {
   gastos: Gasto[];
   retiros: Retiro[];
+  costosFijos: CostoFijo[];
   /** Sirven para el selector y para los movimientos automáticos. */
-  cuentas: (CuentaBreve &
-    CuentaMovimientos & { tipo: string; estado: string })[];
+  cuentas: (CuentaBreve & CuentaMovimientos & CuentaCapital)[];
   fondeadas: CuentaBreve[];
 }) {
   const resumen = useFiltro();
@@ -600,7 +625,7 @@ export function MovimientosVista({
   const [cuantos, setCuantos] = useState(TANDA);
   const [modal, setModal] = useState<
     | null
-    | { que: "gasto"; gasto?: Gasto }
+    | { que: "gasto"; gasto?: Gasto; costoFijo?: CostoFijo }
     | {
         que: "retiro";
         retiro?: Retiro;
@@ -720,9 +745,41 @@ export function MovimientosVista({
   const costoPorFondeada =
     fondeadasConseguidas > 0 ? t.invertido / fondeadasConseguidas : null;
 
+  /**
+   * El pass rate sigue el período del resumen por la **fecha de inicio de
+   * la evaluación**, igual que el costo por fondeada: si el filtro mira
+   * agosto, son las evaluaciones que compraste en agosto. Usar la fecha en
+   * que se resolvió sería más exacto pero rompería la comparación con el
+   * costo, que es justo el número contra el que se lee.
+   */
+  const pass = passRate(
+    cuentas.filter((c) => enPeriodo(c.fecha_inicio, resumen))
+  );
+
   const acumulado = acumuladoEnTiempo(deResumen);
   const categorias = porCategoria(deResumen);
   const firms = useMemo(() => porFirm(cuentas), [cuentas]);
+
+  /**
+   * El capital bajo gestión se calcula con "hoy" del navegador, igual que
+   * el Home: Vercel corre en UTC y entre las 21 y las 24 de Buenos Aires
+   * eso ya es mañana. Se completa al montar para que el HTML del servidor
+   * y el del cliente coincidan.
+   */
+  const [hoy, setHoy] = useState<string | null>(null);
+  useEffect(() => {
+    setHoy(new Date().toLocaleDateString("en-CA"));
+  }, []);
+
+  const capital = useMemo(
+    () => (hoy ? curvaCapital(cuentas, hoy) : []),
+    [cuentas, hoy]
+  );
+
+  const capitalHoy = useMemo(
+    () => (hoy ? fondeadasEnGestion(cuentas, hoy) : []),
+    [cuentas, hoy]
+  );
 
   const enPantalla = deHistorial.slice(0, cuantos);
   const faltan = deHistorial.length - enPantalla.length;
@@ -752,7 +809,13 @@ export function MovimientosVista({
         evaluaciones={evaluaciones}
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Las siete tarjetas en una fila que se corre, como las del
+          journal: apiladas en grilla llenaban media pantalla antes de
+          llegar a los gráficos. Adelante van las que se miran siempre;
+          el costo por fondeada, que se consulta cada tanto, queda a un
+          costado detrás de la flecha. */}
+      <div className="mb-4">
+        <Carrusel etiqueta="números">
         <Total label="Invertido" valor={plata(t.invertido)} />
         <Total label="Cobrado" valor={plata(t.cobrado)} />
         <Total
@@ -787,6 +850,19 @@ export function MovimientosVista({
         />
 
         <Total
+          label={`Tasa de aprobación${
+            pass.resueltas > 0 ? ` (${pass.resueltas})` : ""
+          }`}
+          valor={pass.ratio === null ? "—" : porcentaje(pass.ratio, 0)}
+          clase={pass.ratio === null ? "text-neutral-500" : undefined}
+          ayuda={`Cuántas evaluaciones pasás, de las que terminan: ${pass.pasadas} pasadas y ${pass.quemadas} quemadas.${
+            pass.enCurso > 0
+              ? ` Las ${pass.enCurso} en curso no cuentan todavía.`
+              : ""
+          }`}
+        />
+
+        <Total
           label={`Costo por fondeada${
             fondeadasConseguidas > 0 ? ` (${fondeadasConseguidas})` : ""
           }`}
@@ -794,33 +870,68 @@ export function MovimientosVista({
           clase={costoPorFondeada === null ? "text-neutral-500" : undefined}
           ayuda="Todo lo invertido dividido las fondeadas que conseguiste (incluye las evaluaciones que quemaste en el camino). Comparalo con el retiro promedio: cuando el retiro supera a este número, el negocio se sostiene solo."
         />
+        </Carrusel>
       </div>
 
-      <div className="mb-4 grid gap-3 lg:grid-cols-2">
-        <Panel
-          titulo="Invertido vs. cobrado"
-          ayuda="Acumulado: cuánto llevás puesto y cuánto recuperaste"
-        >
-          <GraficoAcumulado puntos={acumulado} modo="comparado" />
-        </Panel>
+      {/* Los gráficos van en un carrusel de a dos y no en una grilla de
+          cuatro: apilados ocupaban una pantalla entera y obligaban a
+          scrollear para llegar al historial, que es a lo que la mayoría
+          entra. El orden es el de la pregunta más frecuente: primero
+          cuánto manejás, después cuánto pusiste y recuperaste. */}
+      <div className="mb-4">
+        <Carrusel etiqueta="gráficos">
+          <div className={TARJETA}>
+            <Panel
+              titulo="Capital que manejás"
+              ayuda="La suma del balance de tus fondeadas. Sube al pasar una evaluación y baja al quemar una. No sigue los filtros"
+            >
+              <GraficoCapital puntos={capital} hoy={capitalHoy} />
+            </Panel>
+          </div>
 
-        <Panel titulo="Neto acumulado" ayuda="La diferencia entre los dos">
-          <GraficoAcumulado puntos={acumulado} modo="neto" />
-        </Panel>
+          <div className={TARJETA}>
+            <Panel
+              titulo="Invertido vs. cobrado"
+              ayuda="Acumulado: cuánto llevás puesto y cuánto recuperaste"
+            >
+              <GraficoAcumulado puntos={acumulado} modo="comparado" />
+            </Panel>
+          </div>
 
-        <Panel titulo="Gastos por categoría" ayuda="En qué se te va la plata">
-          <GraficoCategorias datos={categorias} />
-        </Panel>
+          <div className={TARJETA}>
+            <Panel titulo="Neto acumulado" ayuda="La diferencia entre los dos">
+              <GraficoAcumulado puntos={acumulado} modo="neto" />
+            </Panel>
+          </div>
 
-        <Panel
-          titulo="Cuentas por firm"
-          ayuda="Cómo terminaron. No sigue los filtros: mira todas tus cuentas"
-        >
-          <GraficoFirms datos={firms} />
-        </Panel>
+          {/* Los dos chicos comparten tarjeta: cada uno solo no llenaba el
+              espacio de un panel y estiraba la pantalla al pedo. */}
+          <div className={TARJETA}>
+            <Panel
+              titulo="En qué se te va y cómo te fue"
+              ayuda="Gastos por categoría, y cómo terminaron las cuentas de cada firm. Las firms no siguen los filtros: miran todas tus cuentas"
+            >
+              <p className="mb-2 text-xs uppercase tracking-wide text-neutral-500">
+                Gastos por categoría
+              </p>
+              <GraficoCategorias datos={categorias} />
+
+              <p className="mb-2 mt-5 border-t border-neutral-800 pt-4 text-xs uppercase tracking-wide text-neutral-500">
+                Cuentas por firm
+              </p>
+              <GraficoFirms datos={firms} />
+            </Panel>
+          </div>
+        </Carrusel>
       </div>
 
       <Titulo>Historial</Titulo>
+
+      <CostosFijosPanel
+        costos={costosFijos}
+        nombreCuenta={nombres}
+        onEditar={(costoFijo) => setModal({ que: "gasto", costoFijo })}
+      />
 
       <Filtros
         filtro={historial}
@@ -885,6 +996,7 @@ export function MovimientosVista({
       {modal?.que === "gasto" && (
         <ModalGasto
           gasto={modal.gasto}
+          costoFijo={modal.costoFijo}
           cuentas={cuentas}
           nombresUsados={nombresUsados}
           onCerrar={() => setModal(null)}

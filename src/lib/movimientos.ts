@@ -71,6 +71,10 @@ export type Gasto = {
   monto: number;
   fecha: string;
   descripcion: string | null;
+  /** Qué costo fijo lo generó. null = gasto cargado a mano. */
+  costo_fijo_id?: string | null;
+  /** El vencimiento teórico del período que cubre. Solo en los generados. */
+  periodo?: string | null;
 };
 
 /* ---------- Movimientos: gastos y retiros en una sola lista ---------- */
@@ -119,6 +123,11 @@ export type Movimiento = {
   automatico?: boolean;
   /** Qué campo de la cuenta lo generó. Solo en los automáticos. */
   origen?: CampoCuenta;
+  /**
+   * Qué costo fijo lo generó. Es una fila de `gastos` común —se edita y se
+   * borra— pero se marca en la lista para que se entienda de dónde salió.
+   */
+  costoFijoId?: string | null;
 };
 
 /** Los campos de la cuenta que se pueden editar desde la lista. */
@@ -241,6 +250,7 @@ export function movimientosDe(
     cuenta_id: g.cuenta_id,
     categoria: g.categoria,
     detalle: g.descripcion,
+    costoFijoId: g.costo_fijo_id ?? null,
   }));
 
   // En un retiro el monto que cuenta como "cobrado" es el neto: lo que
@@ -446,4 +456,226 @@ export function porFirm(
     (a, b) =>
       b.pasadas + b.quemadas + b.enJuego - (a.pasadas + a.quemadas + a.enJuego)
   );
+}
+
+/* ---------- Pass rate ---------- */
+
+export type PassRate = {
+  pasadas: number;
+  quemadas: number;
+  /** Las que todavía estás operando: no entran en la cuenta. */
+  enCurso: number;
+  /** Pasadas + quemadas. El denominador. */
+  resueltas: number;
+  /** Qué proporción de las que terminaron, pasaste. null = ninguna terminó. */
+  ratio: number | null;
+};
+
+/**
+ * Cuántas evaluaciones pasás, de las que terminan.
+ *
+ * **El denominador son las resueltas, no todas.** Una evaluación en curso
+ * todavía no es ni un éxito ni un fracaso, y meterla abajo hunde el número
+ * justo cuando más evaluaciones tenés abiertas — que es cuando mejor te
+ * está yendo. Las en curso se muestran al lado, para que se vea que el
+ * número puede moverse.
+ *
+ * Solo mira evaluaciones (`tipo === "challenge"`): una fondeada no se
+ * "pasa". Pasar una evaluación deja `estado = "passed"` y **no** cambia el
+ * tipo de la cuenta, así que las pasadas siguen contándose acá.
+ */
+export function passRate(cuentas: { tipo: string; estado: string }[]): PassRate {
+  let pasadas = 0;
+  let quemadas = 0;
+  let enCurso = 0;
+
+  for (const c of cuentas) {
+    if (c.tipo !== "challenge") continue;
+    if (c.estado === "passed") pasadas += 1;
+    else if (c.estado === "quemada") quemadas += 1;
+    else if (c.estado !== "archivada") enCurso += 1;
+  }
+
+  const resueltas = pasadas + quemadas;
+
+  return {
+    pasadas,
+    quemadas,
+    enCurso,
+    resueltas,
+    ratio: resueltas > 0 ? (pasadas / resueltas) * 100 : null,
+  };
+}
+
+/* ---------- El capital que manejás ---------- */
+
+/** Lo que hace falta de cada cuenta para saber cuánto capital manejabas. */
+export type CuentaCapital = {
+  nombre?: string;
+  tipo: string;
+  estado: string;
+  tamano_cuenta: number | null;
+  fecha_inicio: string;
+  /** El día que pasó o se quemó. null = sigue en juego. */
+  fecha_cierre: string | null;
+  /** Última modificación. Se usa como cierre cuando falta `fecha_cierre`. */
+  updated_at?: string | null;
+  /**
+   * El balance de la cuenta día por día, de vieja a nueva — la misma curva
+   * que dibuja la tarjeta en Cuentas (`estadoDeCuenta().serie`).
+   *
+   * **Es el dato que manda.** El capital que manejás es lo que hay en las
+   * cuentas, no el tamaño del plan que compraste: una PA de 50k con la
+   * que perdiste 2.000 son 48.000 manejados, y sumar 50.000 muestra plata
+   * que no existe. Se probó con `tamano_cuenta` y el total daba redondo y
+   * equivocado.
+   */
+  serie?: { fecha: string; balance: number }[];
+};
+
+/**
+ * El balance de la cuenta en una fecha: el último punto de su curva que ya
+ * había ocurrido.
+ *
+ * Sin curva cargada cae al tamaño de cuenta, que es de dónde arranca
+ * cualquier cuenta antes del primer movimiento.
+ */
+function balanceEn(c: CuentaCapital, fecha: string): number {
+  const serie = c.serie ?? [];
+
+  let balance = Number(c.tamano_cuenta) || 0;
+  for (const p of serie) {
+    // Las fechas son "AAAA-MM-DD": como texto ya ordenan bien.
+    if (p.fecha > fecha) break;
+    balance = p.balance;
+  }
+
+  return balance;
+}
+
+export type PuntoCapital = {
+  fecha: string;
+  /** Cuánto capital manejabas ese día. */
+  capital: number;
+  /** Cuántas fondeadas vivas lo componían. */
+  cuentas: number;
+};
+
+/**
+ * Cuándo dejaste de manejar esa cuenta. null = la seguís manejando.
+ *
+ * El dato bueno es `fecha_cierre`, pero **la mayoría de las cuentas viejas
+ * no lo tienen** (se agregó en la 006, y solo se pregunta al cambiar el
+ * estado desde la app). Sin un plan B, todas esas cuentas quemadas seguían
+ * sumando para siempre: el gráfico decía que hoy manejás 24 fondeadas
+ * cuando manejás 8. Por eso, cuando la cuenta ya no está en juego y no
+ * tiene fecha de cierre, se usa `updated_at` — el último día que alguien
+ * la tocó, que es aproximadamente el día que se cerró— y si tampoco está,
+ * la fecha de inicio, que la deja contando un solo día en vez de siempre.
+ *
+ * Es una aproximación y se prefiere igual: equivocarle unos días a un
+ * escalón viejo es mucho menos grave que decirle a alguien que maneja el
+ * triple del capital que maneja.
+ */
+function finDeGestion(c: CuentaCapital): string | null {
+  if (c.fecha_cierre) return c.fecha_cierre;
+  if (c.estado === "activa" || c.estado === "en_curso") return null;
+  return (c.updated_at ?? c.fecha_inicio).slice(0, 10);
+}
+
+/**
+ * La escalera del capital bajo gestión: cuánta plata ajena manejaste cada
+ * día.
+ *
+ * Sube cuando una fondeada arranca y baja cuando se quema o se cierra.
+ * Ningún competidor lo muestra, y es el número que mejor cuenta el
+ * progreso de un fondeado: el P&L sube y baja con el mercado, pero pasar
+ * de manejar 50k a manejar 250k es una sola dirección.
+ *
+ * **Solo fondeadas**: en una evaluación los dólares son simulados, así que
+ * "manejar 150k" no significa nada — la misma razón por la que el Home no
+ * suma los dos tipos.
+ *
+ * Los puntos van en los **días en que algo cambió**, no uno por día: la
+ * serie es una escalera y los días intermedios no agregan información.
+ */
+export function curvaCapital(
+  cuentas: CuentaCapital[],
+  hoy: string,
+): PuntoCapital[] {
+  const fondeadas = cuentas
+    .filter((c) => c.tipo === "fondeada")
+    .map((c) => ({
+      cuenta: c,
+      desde: c.fecha_inicio,
+      hasta: finDeGestion(c),
+    }))
+    .filter((c) => c.desde);
+
+  if (fondeadas.length === 0) return [];
+
+  const fechas = new Set<string>();
+  for (const c of fondeadas) {
+    fechas.add(c.desde);
+    // El día del cierre todavía la manejabas: el escalón baja al siguiente.
+    if (c.hasta) fechas.add(diaSiguiente(c.hasta));
+    // Y cada día en que el balance de esa cuenta se movió: el capital
+    // manejado cambia también cuando ganás, perdés o retirás, no solo
+    // cuando una cuenta nace o muere.
+    for (const p of c.cuenta.serie ?? []) fechas.add(p.fecha);
+  }
+  fechas.add(hoy);
+
+  return [...fechas]
+    .filter((f) => f <= hoy)
+    .sort()
+    .map((fecha) => {
+      let capital = 0;
+      let vivas = 0;
+
+      for (const c of fondeadas) {
+        // Las fechas son "AAAA-MM-DD": como texto ya ordenan bien.
+        if (c.desde > fecha) continue;
+        if (c.hasta !== null && c.hasta < fecha) continue;
+        capital += balanceEn(c.cuenta, fecha);
+        vivas += 1;
+      }
+
+      return { fecha, capital, cuentas: vivas };
+    });
+}
+
+/**
+ * Qué cuentas componen el capital de hoy, una por una.
+ *
+ * Existe para que el número grande sea **auditable**: la primera vez que
+ * el gráfico mostró un total, la reacción fue "yo no manejo tanto" — y sin
+ * poder ver de qué cuentas sale, no había forma de saber si el error era
+ * del cálculo o de una cuenta quemada que quedó marcada como activa. Un
+ * número que no se puede desarmar no se puede corregir.
+ */
+export function fondeadasEnGestion(
+  cuentas: CuentaCapital[],
+  hoy: string,
+): { nombre: string; tamano: number }[] {
+  return cuentas
+    .filter((c) => c.tipo === "fondeada")
+    .filter((c) => c.fecha_inicio <= hoy)
+    .filter((c) => {
+      const fin = finDeGestion(c);
+      return fin === null || fin >= hoy;
+    })
+    .map((c) => ({
+      nombre: c.nombre ?? "—",
+      // El balance de hoy, el mismo número que muestra su tarjeta en
+      // Cuentas. Que los dos lugares digan lo mismo es la mitad del punto.
+      tamano: balanceEn(c, hoy),
+    }))
+    .sort((a, b) => b.tamano - a.tamano);
+}
+
+/** "2026-08-18" -> "2026-08-19", por UTC para no correrse un día. */
+function diaSiguiente(fecha: string) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + 1)).toISOString().slice(0, 10);
 }

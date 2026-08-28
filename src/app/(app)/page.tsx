@@ -4,12 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { ordenarCuentas, type Cuenta, type Retiro } from "@/lib/cuentas";
 import { movimientosDe, type Gasto } from "@/lib/movimientos";
 import { estadoDeCuenta, porCuenta, type Resultado } from "@/lib/resultados";
+import { generarCostosFijos } from "@/lib/costos-fijos-server";
 
 // Siempre datos frescos: cada usuario ve solo lo suyo (RLS).
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const supabase = createClient();
+
+  // El flujo de caja del Home tiene que dar lo mismo que el Funding
+  // Manager, así que los costos fijos vencidos se generan también acá:
+  // si no, el número cambiaba según por qué pantalla entrabas.
+  await generarCostosFijos(supabase);
 
   const [{ data: cuentas, error }, { data: payouts }, { data: dias }, { data: gastos }] =
     await Promise.all([

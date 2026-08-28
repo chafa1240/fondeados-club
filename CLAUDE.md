@@ -72,8 +72,11 @@ Las cuatro secciones están hechas y funcionando:
 
 Más el **tono claro y oscuro** (2026-08-22).
 
-**Todas las migraciones (`supabase/001` a `013`) están corridas** en el
-proyecto de Supabase.
+**Las migraciones `supabase/001` a `013` están corridas** en el proyecto
+de Supabase. La **`014`** (costos fijos) se corrió el 2026-08-27. ⚠️ **La
+`015` (long/short) está escrita y falta correrla**: hasta que se corra,
+cargar un resultado va a fallar con "falta correr
+supabase/015_long_short.sql".
 
 El paso a paso completo, con qué entró en cada tramo y qué falta, está en
 **`docs/ROADMAP.md`**.
@@ -267,19 +270,73 @@ escribirla a mano no toca nada, porque ahí no sabemos de qué mercado es.
 Implementado en el Paso 6 (2026-08-18). La pantalla tiene dos secciones,
 **Resumen** e **Historial**, cada una con su propio filtro.
 
-Cards de resumen: Invertido, Cobrado, Neto, **ROI %**, **Retiro promedio**
-y **Costo por fondeada** (todo lo invertido dividido las fondeadas
+Cards de resumen: Invertido, Cobrado, Neto, **ROI %**, **Retiro promedio**,
+**Tasa de aprobación** y **Costo por fondeada** (todo lo invertido dividido las fondeadas
 conseguidas, contando las evaluaciones quemadas en el camino). Estos dos
 últimos se leen de a pares: cuando el retiro promedio supera al costo por
 fondeada, el negocio se sostiene solo.
 
-Gráficos (todos calculables solo con gastos + payouts, sin necesitar
-datos de trades):
+**Tasa de aprobación** (2026-08-28, el "pass rate" del rubro — la app se
+escribe en español, ver *Idioma*): cuántas evaluaciones pasás **de las que
+terminan**. El denominador son las resueltas (pasadas + quemadas), no
+todas: una evaluación en curso no es ni éxito ni fracaso, y meterla abajo
+hunde el número justo cuando más evaluaciones abiertas tenés, que es
+cuando mejor te está yendo. Las en curso se dicen en la ayuda para que se
+entienda que el número puede moverse. Sigue el período del resumen por la
+**fecha de inicio** de la evaluación, igual que el costo por fondeada —
+son los dos números que se leen juntos. Pasar una evaluación deja
+`estado = "passed"` y **no** cambia el `tipo`, por eso las pasadas se
+siguen contando.
+
+Gráficos, en un **carrusel de a dos con flechas** (2026-08-28) y no en una
+grilla de cuatro: apilados ocupaban una pantalla entera y obligaban a
+scrollear para llegar al historial, que es a lo que la mayoría entra. El
+orden es el de la pregunta más frecuente — primero cuánto manejás, después
+cuánto pusiste y recuperaste. El scroll y las flechas son el mismo
+`Carrusel` que usan las tarjetas del journal (`src/components/carrusel.tsx`).
 - Invertido vs. cobrado, acumulado en el tiempo
 - Neto acumulado
-- Gastos por categoría — un solo tono, no un color por categoría: acá se
-  comparan tamaños, y pintar cada una distinta sugiere que el color
-  significa algo
+- **Gastos por categoría** y **cuentas por firm** comparten una sola
+  tarjeta: cada uno solo no llenaba el panel. Los gastos van en un solo
+  tono, no un color por categoría — acá se comparan tamaños, y pintar cada
+  una distinta sugiere que el color significa algo
+- **Capital que manejás** (2026-08-28) — cuánta plata ajena manejás: la
+  suma del **balance** de las fondeadas vivas cada día, el mismo número que
+  muestra cada tarjeta en Cuentas. ⚠️ La primera versión sumaba
+  `tamano_cuenta` (el tamaño del plan) y daba un total redondo y
+  equivocado: una PA de 50k con la que perdiste 2.000 son 48.000
+  manejados. Por eso el Funding Manager ahora también trae
+  `resultados_diarios` y reconstruye la curva de cada cuenta con
+  `estadoDeCuenta()`, igual que el Home — que los dos lugares digan lo
+  mismo es la mitad del punto. Como consecuencia, la curva se mueve
+  también cuando ganás, perdés o retirás, no solo cuando una cuenta nace o
+  muere. Sube al
+  pasar una evaluación y baja al quemar una fondeada. **Ningún competidor
+  lo muestra**, y es el número que mejor cuenta el progreso de un
+  fondeado: el P&L sube y baja con el mercado, pero pasar de manejar 50k a
+  250k es una sola dirección. Arriba va **el número de hoy**, grande, con un
+  "ver cuáles" que lo desarma cuenta por cuenta: la primera reacción al
+  total fue "yo no manejo tanto", y sin poder abrirlo no hay forma de
+  saber si el error es del cálculo o de una cuenta quemada que quedó
+  marcada como activa. Un número que no se puede desarmar no se puede
+  corregir. La línea va **de punto a punto**; se probó escalonada —que es
+  lo fiel al dato— y se ve dura y un salto tapa la forma general de la
+  serie, que es lo que uno viene a mirar. Los puntos siguen estando en los
+  días exactos en que algo cambió. El área arranca siempre en 0, si no los
+  escalones se ven el doble de grandes. **Solo fondeadas**: en una
+  evaluación los dólares son simulados. Los puntos van en los días en que
+  algo cambió, no uno por día.
+  ⚠️ **Las cuentas viejas no tienen `fecha_cierre`** (se agregó en la 006 y
+  solo se completa al cambiar el estado desde la app), así que en la
+  primera versión todas las quemadas seguían sumando y el gráfico decía 24
+  fondeadas donde había 8. Cuando la cuenta ya no está en juego y no tiene
+  fecha de cierre se usa `updated_at`, y si tampoco, la de inicio: ver
+  `finDeGestion()`. Es una aproximación a propósito — equivocarle unos días
+  a un escalón viejo es mucho menos grave que decirle a alguien que maneja
+  el triple del capital que maneja. Una cuenta **sin tamaño cargado suma
+  0** y no rompe la serie: con `undefined` la suma daba `NaN` y el gráfico
+  quedaba en blanco sin decir por qué. **No sigue los filtros**: mira todas las fondeadas, y así lo dice en pantalla.
+  `curvaCapital()` en `src/lib/movimientos.ts`
 - Cuentas por firm (pasadas / quemadas / en juego). **No sigue los
   filtros**: mira todas las cuentas, y así lo dice en pantalla
 
@@ -287,6 +344,48 @@ Tabla de "Movimientos": todo (gastos + retiros) en una lista, con filtros
 de cuenta, período y tipo, paginada por tandas. Los movimientos
 automáticos se marcan "desde la cuenta" y al editarlos se abre el campo de
 la cuenta que los generó, no una fila de gasto.
+
+**Costos fijos** (2026-08-27): lo que se paga sí o sí todos los meses,
+opere o no — data feed, plataforma, indicadores.
+
+**No tienen alta propia**: se cargan desde **+ Gasto**, marcando *"se
+repite"*. Se probó al revés —dos botones, "+ Gasto" y "+ Costo fijo"— y
+obliga a decidir qué clase de cosa estás cargando antes de saber qué
+campos hay. Es el mismo gesto (anotar plata que sale) y que se repita es
+un dato más de ese pago. El panel de arriba del historial es solo para
+**verlos y editarlos**. Con el switch puesto se guarda la **plantilla** y
+no una fila de `gastos`: si guardara las dos, el primer período quedaría
+cargado dos veces. Destildarlo en un costo fijo existente borra la
+plantilla y deja los períodos ya generados como gastos comunes.
+
+Un gasto ya generado no vuelve a ofrecer "se repite" (crearía una segunda
+plantilla del mismo costo): se edita como el gasto puntual que es.
+
+Se carga una vez, con
+periodicidad **semanal / mensual / anual**, fecha de inicio y fecha de fin
+opcional, y la app **genera un gasto por cada período vencido**. La tarjeta
+de arriba del historial muestra el total **por mes** (un anual se divide
+por 12, un semanal se multiplica por 52/12 — no por 4, que dejaría el
+total 8% corto).
+
+Genera filas de verdad en `gastos` en vez de derivarse al vuelo como el
+precio de la evaluación, y es a propósito: un costo fijo real no es
+regular. Un mes no lo pagaste, otro te lo cobraron distinto. Con filas,
+cada período es un gasto normal que se edita o se borra de a uno, y borrar
+uno es definitivo (`ultimo_periodo` marca hasta dónde se generó, así que
+el mes borrado no revive en la próxima carga). Los gastos generados se
+marcan **"recurrente"** en la lista.
+
+Pausar ≠ borrar: pausar deja de generar y **conserva** lo ya generado
+(diste de baja el servicio); borrar la plantilla también conserva los
+gastos —son plata que saliste, borrarla cambiaría el ROI de meses
+cerrados— y solo corta lo que viene.
+
+La generación corre al abrir el **Home** y el **Funding Manager**
+(`generarCostosFijos()` en `src/lib/costos-fijos-server.ts`). No hay cron:
+la app solo existe cuando alguien la abre. Corre en las dos pantallas
+porque el flujo de caja del Home tiene que dar el mismo número que el
+Funding Manager.
 
 **Dos filtros, no uno** (decisión 2026-08-18): el resumen responde "cómo
 vengo" y el historial "qué cargué". Con un filtro compartido, mirar una
@@ -506,8 +605,18 @@ cosa te hace dudar de si el número que estás viendo es el de tu cuenta.
 cuentas ahí mismo: el modal tiene arriba un alta con **chips de cuenta
 (varias a la vez)**, monto y —solo si alguna de las elegidas tiene
 drawdown que trailea— el máximo del día. Cada entrada del día tiene su
-**Borrar**: si se puede cargar desde acá, se tiene que poder deshacer
-desde acá.
+**Corregir** y su **Borrar**: si se puede cargar desde acá, se tiene que
+poder arreglar y deshacer desde acá.
+
+El **Corregir** del journal toca **el monto y el lado, nada más**
+(`corregirEntrada()` en `resultados-actions.ts`, agregado el 2026-08-27
+para poder marcar long/short sin ir hasta Cuentas). No pasa por
+`guardarResultado()` a propósito: el journal no conoce el tamaño de la
+cuenta ni el máximo del día, así que mandar el formulario grande con esos
+campos vacíos los habría puesto en null — borrar el máximo del día al
+corregir un monto es justo el error que **infla el colchón del drawdown**.
+El `pct` lo recalcula la action leyendo el tamaño de la cuenta, para que
+monto y % no digan cosas distintas de la misma entrada.
 
 **Por qué varias cuentas y no un desplegable simple**: replicar es la
 forma normal de operar con prop firms —la misma orden se copia a varias
@@ -576,23 +685,35 @@ win rate por trade —que es lo que llena el tablero de Tradesyncer— salen
 de operaciones importadas del broker; sin eso, mostrarlos sería inventar.
 Lo que sí se puede decir con un número por día es más de lo que parece:
 
-- **Racha de escritura**: días operados seguidos, desde el último, que
-  tienen nota. Cuenta días **operados**, no de calendario —un fin de
-  semana no corta la racha porque no había nada que escribir—, y si el
-  último día operado no está escrito la racha es **cero**, no "se
-  mantiene": el punto de una racha es que duela cortarla.
-- **Días en verde**, **día promedio** (la expectativa por jornada),
+- **Días ganadores**, **día promedio** (la expectativa por jornada),
   **mejor día** y **peor día**.
-- **¿Escribir te sirve?** — el resultado promedio **del día después** de
-  escribir contra el del día después de no escribir. El "después" no es un
-  detalle: la nota se escribe al cierre, así que comparar días escritos
-  contra no escritos sin correr la ventana sería medir el efecto de una
-  causa posterior. Aun así es correlación y no causa, y la pantalla lo
-  dice. **No se muestra hasta tener 5 días en cada grupo**: un número que
-  miente, en la pantalla que te pide escribir todos los días, es peor que
-  no mostrar nada.
+- **P&L, win rate y profit factor** (2026-08-28), calculados **por
+  operación**. Durante todo el MVP no existieron a propósito: sin el
+  sentido de cada trade lo único que había era un número por jornada, y
+  llamarle "win rate por trade" habría sido inventar. Con las operaciones
+  cargadas de a una el número se puede dar sin mentir, con la salvedad que
+  la pantalla dice una sola vez: **una orden replicada en cinco cuentas son
+  cinco entradas**. El profit factor es `ganado / perdido` en bruto y da
+  `—` cuando todavía no hay ninguna perdedora (dividir por cero da
+  infinito, que no es una respuesta); el color se corta en 1 y no en 0,
+  porque debajo de 1 estás perdiendo.
+- **Long vs. short** (2026-08-27): cuánto dejó cada lado, con la cantidad
+  de operaciones, el % en verde y el promedio por operación, más una barra
+  que reparte el peso de los dos. Es lo que muestra Tradesyncer y es la
+  primera estadística que dice algo sobre **cómo** operás y no solo cuánto.
+  Cuenta **entradas, no jornadas**: el mismo trade replicado en cinco
+  cuentas suma cinco veces, que es lo correcto para la plata. Las entradas
+  sin lado cargado se cuentan aparte y no ensucian la comparación.
 - **Por día de la semana**: barras con el total de cada día, que ningún
   competidor tiene y suele destapar patrones.
+
+**Las tarjetas van en una sola fila que se corre al costado**
+(`FilaTarjetas` en `components/journal/estadisticas.tsx`, 2026-08-28).
+Estuvieron un rato partidas en dos grillas —"por operación" y "por día"—
+y esa división era del cálculo, no de la pregunta: uno mira los números
+seguidos. Se arrastra con el dedo **y** tiene flechas, porque en
+escritorio una fila que se corre sin ningún control visible parece
+cortada, no desplazable; las flechas se apagan en cada punta.
 
 **Los colores del gráfico se validaron, no se eligieron a ojo.** El
 verde/rosa que usa el resto de la app separa ΔE 4.6 para daltonismo
@@ -600,6 +721,15 @@ deutan, muy abajo del piso de 8. Los del gráfico son
 `--grafico-positivo` / `--grafico-negativo`: en oscuro separan 13.8 y en
 claro pasan las seis pruebas. Además el signo no depende del color — la
 barra está arriba o abajo del cero y tiene el número escrito al lado.
+
+**Lo que se sacó** (2026-08-27, al entrar long/short): la **racha de
+escritura** y el **"¿escribir te sirve?"**. Los dos hablaban del hábito de
+escribir y no de cómo operás — uno premiaba la constancia, el otro
+comparaba el día después de escribir contra el día después de no escribir,
+que además era correlación y no causa. Con el sentido cargado se puede
+responder algo que sí cambia lo que hacés mañana. Si alguna vez se quieren
+de vuelta, están en el historial de git (`estadisticas.ts`,
+`rachaDeEscritura()` y `efectoDeEscribir()`).
 
 **Lo que se descartó a propósito**: un "score" compuesto tipo el de
 Tradesyncer (mezcla métricas con una fórmula que no explican y saber que
@@ -707,13 +837,44 @@ generales no atados a una cuenta, ej. software/suscripciones),
 `categoria` (fee_challenge, reset, activacion, software_suscripcion,
 otro), `monto`, `fecha`, `descripcion`.
 
+### costos_fijos (migración 014)
+La **plantilla** de un gasto que se repite, no el gasto. Campos: `nombre`,
+`cuenta_id` (nullable, igual que en `gastos`), `categoria`
+(software_suscripcion | otro), `monto`, `periodicidad` (semanal | mensual
+| anual), `fecha_inicio`, `fecha_fin` (null = vigente), `activo` (pausado
+sin borrar) y `ultimo_periodo`.
+
+`ultimo_periodo` es el que hace que la generación sea idempotente **y**
+que borrar un gasto generado sea definitivo: se genera *después* de esa
+fecha, nunca desde `fecha_inicio`. El índice único parcial
+`(costo_fijo_id, periodo)` en `gastos` es la red por si dos pestañas
+generan a la vez.
+
+`gastos` suma dos columnas: `costo_fijo_id` (qué plantilla lo creó,
+`on delete set null`) y `periodo` (el vencimiento teórico; `fecha` arranca
+igual pero se puede corregir a mano sin que se regenere).
+
+Los períodos se calculan **anclados a `fecha_inicio`**, no sumando de a
+uno: un costo que arranca un 31 daría 28 para siempre desde el primer
+febrero si se fuera acumulando. Ver `periodoN()` en
+`src/lib/costos-fijos.ts`.
+
 ### payouts
 Una fila por cobro. Campos: `cuenta_id` (obligatorio, un payout siempre
 es de una cuenta), `monto`, `fecha`, `notas`.
 
-### resultados_diarios (Paso 5b, migración 011 + 012)
+### resultados_diarios (Paso 5b, migración 011 + 012 + 015)
 Una fila por **entrada**: `fecha`, `monto`, `pct` (el mismo número sobre el
-tamaño de cuenta), `pico_dia` y `notas`.
+tamaño de cuenta), `pico_dia`, `sentido` y `notas`.
+
+`sentido` (`long` | `short`, migración 015) es de la **entrada**, no del
+día: un día con una compra y una venta no tiene un solo lado. Es
+**nullable a propósito** — todo lo cargado antes no lo tiene, y una
+entrada puede ser el neto de una jornada mixta. Las estadísticas cuentan
+solo las marcadas y dicen cuántas quedaron afuera; inventarle un lado a un
+número sería peor que no mostrarlo. Al replicar en varias cuentas el lado
+viaja a todas: una orden replicada es long en las cinco o short en las
+cinco.
 
 ⚠️ **Una fila NO es un día.** La 011 puso un índice único en
 (`cuenta_id`, `fecha`) con el alta como upsert, y eso rompía el caso más

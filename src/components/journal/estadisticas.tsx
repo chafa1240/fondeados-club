@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
+import { Carrusel } from "@/components/carrusel";
 import { fechaCorta, plata, porcentaje } from "@/lib/cuentas";
 import type { DiaHome } from "@/lib/home";
-import type { DiaJournal } from "@/lib/journal";
 import {
-  efectoDeEscribir,
   estadisticasDeDias,
+  estadisticasDeOperaciones,
   porDiaSemana,
-  rachaDeEscritura,
+  porSentido,
+  type ResumenSentido,
 } from "@/lib/estadisticas";
+import { SENTIDO_INFO, type Resultado, type Sentido } from "@/lib/resultados";
 
 /**
  * Las estadísticas del journal.
@@ -31,7 +34,7 @@ function Tarjeta({
   pie?: string;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="w-40 shrink-0 snap-start rounded-xl border border-neutral-800 bg-neutral-900 p-4 sm:w-44">
       <p className="text-xs text-neutral-500">{titulo}</p>
       <p className={`mt-1 text-2xl font-bold tabular-nums ${clase ?? ""}`}>
         {valor}
@@ -41,6 +44,14 @@ function Tarjeta({
   );
 }
 
+/**
+ * Las tarjetas van en una sola fila que se corre al costado.
+ *
+ * Estuvieron un rato partidas en dos grillas —"por operación" y "por
+ * día"— y esa división era del cálculo, no de la pregunta: uno mira los
+ * números seguidos. El scroll y las flechas viven en `Carrusel`, que
+ * también usa el Funding Manager.
+ */
 function color(n: number) {
   return n > 0 ? "text-emerald-400" : n < 0 ? "text-rose-400" : "text-neutral-300";
 }
@@ -178,43 +189,150 @@ function PorDiaSemana({ dias }: { dias: DiaHome[] }) {
   );
 }
 
+/* ---------- Long vs. short ---------- */
+
+function Lado({
+  sentido,
+  datos,
+}: {
+  sentido: Sentido;
+  datos: ResumenSentido;
+}) {
+  const info = SENTIDO_INFO[sentido];
+
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+        <span aria-hidden>{info.flecha}</span>
+        {info.label}
+      </p>
+      <p className={`mt-1 text-xl font-bold tabular-nums ${color(datos.total)}`}>
+        {plata(datos.total)}
+      </p>
+      <p className="text-xs text-neutral-500">
+        {datos.entradas === 0
+          ? "Sin operaciones"
+          : `${datos.entradas} op · ${porcentaje(datos.ganadorPct ?? 0, 0)} en verde`}
+      </p>
+      {datos.promedio !== null && (
+        <p className="text-xs text-neutral-500">
+          {plata(datos.promedio)} por operación
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * La barra que compara los dos lados.
+ *
+ * Reparte el ancho por el **valor absoluto** de cada lado: la pregunta es
+ * cuánto pesa cada uno, y un short que perdió $500 pesa lo mismo que un
+ * long que ganó $500 — lo que cambia es el color, no el tamaño. Un lado en
+ * cero no dibuja nada.
+ */
+function Balanza({ long, short }: { long: number; short: number }) {
+  const a = Math.abs(long);
+  const b = Math.abs(short);
+  if (a + b === 0) return null;
+
+  const pctLong = (a / (a + b)) * 100;
+
+  const tono = (n: number) =>
+    n >= 0 ? "bg-[rgb(var(--grafico-positivo))]" : "bg-[rgb(var(--grafico-negativo))]";
+
+  return (
+    <div className="mt-4">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-neutral-800">
+        <div className={tono(long)} style={{ width: `${pctLong}%` }} />
+        <div className={tono(short)} style={{ width: `${100 - pctLong}%` }} />
+      </div>
+      <div className="mt-1 flex justify-between text-xs text-neutral-500">
+        <span>▲ Long</span>
+        <span>Short ▼</span>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- El bloque entero ---------- */
 
 export function Estadisticas({
   diasTrading,
-  diasJournal,
+  entradas,
 }: {
   diasTrading: DiaHome[];
-  diasJournal: DiaJournal[];
+  /**
+   * Las entradas sueltas, no los días: el sentido, el win rate y el profit
+   * factor son de la operación. Un día con un long y un short no tiene un
+   * solo lado.
+   */
+  entradas: Resultado[];
 }) {
   const stats = estadisticasDeDias(diasTrading);
-  const racha = rachaDeEscritura(diasJournal);
-  const efecto = efectoDeEscribir(diasJournal);
+  const ops = estadisticasDeOperaciones(entradas);
+  const lados = porSentido(entradas);
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <Carrusel etiqueta="estadísticas">
         <Tarjeta
-          titulo="Racha de escritura"
-          valor={
-            racha.dias > 0 ? `${racha.dias} ${racha.dias === 1 ? "día" : "días"}` : "—"
-          }
-          clase={racha.dias > 0 ? "text-emerald-400" : "text-neutral-600"}
+          titulo="P&L"
+          valor={plata(ops.pnl)}
+          clase={ops.operaciones === 0 ? "text-neutral-600" : color(ops.pnl)}
           pie={
-            racha.pendiente
-              ? `Escribí el ${fechaCorta(racha.pendiente)} para arrancarla`
-              : racha.dias > 0
-                ? "Días operados seguidos, escritos"
-                : undefined
+            ops.operaciones > 0
+              ? `${plata(ops.bruto.ganado)} ganados · ${plata(ops.bruto.perdido)} perdidos`
+              : undefined
           }
         />
         <Tarjeta
-          titulo="Días en verde"
+          titulo="Win rate"
+          valor={ops.winRate === null ? "—" : porcentaje(ops.winRate, 0)}
+          clase={ops.winRate === null ? "text-neutral-600" : undefined}
+          pie={
+            ops.operaciones > 0
+              ? `${ops.ganadoras}V · ${ops.perdedoras}R de ${ops.operaciones} op`
+              : undefined
+          }
+        />
+        {/* Debajo de 1 estás perdiendo: por cada dólar que ganás, perdés
+            más de uno. Por eso el color se corta ahí y no en cero. */}
+        <Tarjeta
+          titulo="Profit factor"
+          valor={ops.profitFactor === null ? "—" : ops.profitFactor.toFixed(2)}
+          clase={
+            ops.profitFactor === null
+              ? "text-neutral-600"
+              : ops.profitFactor >= 1
+                ? "text-emerald-400"
+                : "text-rose-400"
+          }
+          pie={
+            ops.profitFactor === null
+              ? ops.operaciones > 0
+                ? "Todavía ninguna perdedora"
+                : undefined
+              : "Ganado sobre perdido"
+          }
+        />
+        <Tarjeta
+          titulo="Operaciones"
+          valor={String(ops.operaciones)}
+          clase={ops.operaciones === 0 ? "text-neutral-600" : undefined}
+          pie={
+            ops.promedio !== null
+              ? `${plata(ops.promedio)} promedio`
+              : undefined
+          }
+        />
+        <Tarjeta
+          titulo="Días ganadores"
           valor={stats.ganadorPct === null ? "—" : porcentaje(stats.ganadorPct, 0)}
           clase={stats.ganadorPct === null ? "text-neutral-600" : undefined}
           pie={
             stats.operados > 0
-              ? `${stats.ganadores}V · ${stats.perdedores}R de ${stats.operados}`
+              ? `${stats.ganadores}V · ${stats.perdedores}R de ${stats.operados} días`
               : undefined
           }
         />
@@ -236,56 +354,47 @@ export function Estadisticas({
           clase={stats.peor ? "text-rose-400" : "text-neutral-600"}
           pie={stats.peor ? fechaCorta(stats.peor.fecha) : undefined}
         />
-      </div>
+      </Carrusel>
+
+      {/* La salvedad va una sola vez, acá, y no repetida en cada tarjeta. */}
+      <p className="text-xs text-neutral-600">
+        Las tres primeras cuentan operaciones cargadas —la misma orden
+        replicada en varias cuentas suma una vez por cuenta—; las de días
+        cuentan jornadas.
+      </p>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* ¿Escribir sirve? */}
+        {/* Long vs. short */}
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-sm font-medium">¿Escribir te sirve?</p>
+          <p className="text-sm font-medium">Long vs. short</p>
           <p className="mt-0.5 text-xs text-neutral-500">
-            Cómo te fue el día después de escribir, contra el día después de no
-            escribir.
+            Cuánto dejó cada lado, sumando todas las operaciones cargadas.
           </p>
 
-          {efecto.suficiente ? (
+          {lados.vacio ? (
+            <p className="mt-4 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
+              Todavía no marcaste ninguna operación como long o short. El
+              selector está al cargar el resultado del día — desde acá mismo o
+              desde la tarjeta de la cuenta.
+            </p>
+          ) : (
             <>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-neutral-500">Después de escribir</p>
-                  <p
-                    className={`mt-1 text-xl font-bold tabular-nums ${color(efecto.despuesDeEscribir.promedio)}`}
-                  >
-                    {plata(efecto.despuesDeEscribir.promedio)}
-                  </p>
-                  <p className="text-xs text-neutral-500">
-                    {efecto.despuesDeEscribir.dias} días
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-neutral-500">Después de no escribir</p>
-                  <p
-                    className={`mt-1 text-xl font-bold tabular-nums ${color(efecto.despuesDeNoEscribir.promedio)}`}
-                  >
-                    {plata(efecto.despuesDeNoEscribir.promedio)}
-                  </p>
-                  <p className="text-xs text-neutral-500">
-                    {efecto.despuesDeNoEscribir.dias} días
-                  </p>
-                </div>
+                <Lado sentido="long" datos={lados.long} />
+                <Lado sentido="short" datos={lados.short} />
               </div>
 
+              <Balanza long={lados.long.total} short={lados.short.total} />
+
               <p className="mt-3 text-xs text-neutral-500">
-                Diferencia: {plata(efecto.diferencia)} por día. Ojo: esto es una
-                relación, no una causa — quien viene ordenado escribe y además
-                opera mejor, y las dos cosas pueden salir de lo mismo.
+                Cuenta operaciones cargadas, no jornadas: el mismo trade
+                replicado en varias cuentas suma una vez por cuenta, que es lo
+                correcto para la plata.
+                {lados.sinMarcar > 0
+                  ? ` Quedan ${lados.sinMarcar} sin marcar, afuera de los dos.`
+                  : ""}
               </p>
             </>
-          ) : (
-            <p className="mt-4 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
-              Faltan {efecto.faltan} {efecto.faltan === 1 ? "día" : "días"} para
-              poder compararlo. Con menos, el número es ruido y prefiero no
-              mostrarlo.
-            </p>
           )}
         </div>
 

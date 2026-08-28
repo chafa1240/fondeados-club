@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { SENTIDOS, pctDeResultado, type Sentido } from "@/lib/resultados";
 
 export type EstadoForm = { error?: string; ok?: string };
 
@@ -63,12 +64,23 @@ export async function guardarResultado(
   const picoCargado = numero(fd, "pico_dia");
   const pico_dia = picoCargado === null ? null : Math.max(picoCargado, 0);
 
+  // El sentido es opcional: lo cargado antes de la 015 no lo tiene, y una
+  // entrada puede ser el neto de una jornada mixta, que no es ni long ni
+  // short. Un valor raro se guarda como null en vez de romper el alta:
+  // perder el lado es molesto, perder el resultado del día es peor.
+  const crudo = texto(fd, "sentido");
+  const sentido: Sentido | null =
+    crudo !== null && SENTIDOS.includes(crudo as Sentido)
+      ? (crudo as Sentido)
+      : null;
+
   const datos = {
     cuenta_id,
     fecha,
     monto,
     pct: numero(fd, "pct"),
     pico_dia,
+    sentido,
     notas: texto(fd, "notas"),
   };
 
@@ -132,6 +144,7 @@ export async function guardarEnVariasCuentas(
   const fecha = String(fd.get("fecha") ?? "");
   const monto = String(fd.get("monto") ?? "");
   const pico = String(fd.get("pico_dia") ?? "");
+  const sentido = String(fd.get("sentido") ?? "");
   const notas = String(fd.get("notas") ?? "");
 
   let guardadas = 0;
@@ -143,6 +156,9 @@ export async function guardarEnVariasCuentas(
     uno.set("fecha", fecha);
     uno.set("monto", monto);
     if (pico) uno.set("pico_dia", pico);
+    // El lado viaja a todas: replicar es copiar la misma orden, y una
+    // orden replicada es long en las cinco cuentas o short en las cinco.
+    if (sentido) uno.set("sentido", sentido);
     if (notas) uno.set("notas", notas);
 
     const r = await guardarResultado({}, uno);
@@ -164,6 +180,73 @@ export async function guardarEnVariasCuentas(
         ? "Entrada agregada."
         : `Entrada agregada en ${guardadas} cuentas.`,
   };
+}
+
+/**
+ * Corregir una entrada desde el journal: el monto y el lado, nada más.
+ *
+ * Existe aparte de `guardarResultado()` porque el journal **no conoce
+ * todos los campos de la entrada**: no tiene el tamaño de la cuenta para
+ * el %, ni el máximo del día. Pasar por el formulario grande con esos
+ * campos vacíos los habría puesto en null sin que nadie lo pidiera —
+ * borrar el máximo del día al corregir un monto es justo el error que
+ * infla el colchón del drawdown.
+ *
+ * Acá se tocan exactamente dos columnas y el `pct` se **recalcula** con el
+ * tamaño de la cuenta leído de la base: si cambió el monto y el % quedara
+ * viejo, los dos números dirían cosas distintas de la misma entrada.
+ * El máximo del día no se toca: es del día, no de la entrada, y para eso
+ * está el modal de la tarjeta en Cuentas.
+ */
+export async function corregirEntrada(
+  _prev: EstadoForm,
+  fd: FormData,
+): Promise<EstadoForm> {
+  const id = texto(fd, "id");
+  const monto = numero(fd, "monto");
+
+  if (!id) return { error: "Falta la entrada." };
+  if (monto === null) return { error: "Escribí el resultado." };
+
+  const crudo = texto(fd, "sentido");
+  const sentido: Sentido | null =
+    crudo !== null && SENTIDOS.includes(crudo as Sentido)
+      ? (crudo as Sentido)
+      : null;
+
+  const supabase = createClient();
+
+  const { data: entrada } = await supabase
+    .from("resultados_diarios")
+    .select("cuenta_id")
+    .eq("id", id)
+    .single();
+
+  let pct: number | null = null;
+  if (entrada?.cuenta_id) {
+    const { data: cuenta } = await supabase
+      .from("cuentas_fondeo")
+      .select("tamano_cuenta")
+      .eq("id", entrada.cuenta_id)
+      .single();
+
+    if (cuenta?.tamano_cuenta) {
+      pct = pctDeResultado(cuenta.tamano_cuenta, monto);
+    }
+  }
+
+  const { error } = await supabase
+    .from("resultados_diarios")
+    .update({ monto, pct, sentido })
+    .eq("id", id);
+
+  if (error) return { error: mensajeDeError(error.message) };
+
+  revalidatePath("/cuentas");
+  revalidatePath("/funding-manager");
+  revalidatePath("/journal");
+  revalidatePath("/");
+  return { ok: "Entrada corregida." };
 }
 
 /**
@@ -250,6 +333,9 @@ function mensajeDeError(mensaje: string) {
   }
   if (mensaje.includes("permission denied")) {
     return "La tabla no tiene permisos para la API. Corré supabase/011_resultados_diarios.sql en el SQL Editor.";
+  }
+  if (mensaje.includes("sentido")) {
+    return "Falta correr supabase/015_long_short.sql en el SQL Editor de Supabase.";
   }
   if (mensaje.includes("does not exist") || mensaje.includes("schema cache")) {
     return "Falta correr supabase/011_resultados_diarios.sql en el SQL Editor de Supabase.";

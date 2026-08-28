@@ -8,6 +8,13 @@ import {
   type CampoCuenta,
   type Categoria,
 } from "@/lib/movimientos";
+import {
+  CATEGORIAS_COSTO_FIJO,
+  PERIODICIDADES,
+  type CategoriaCostoFijo,
+  type Periodicidad,
+} from "@/lib/costos-fijos";
+import { generarCostosFijos } from "@/lib/costos-fijos-server";
 
 export type EstadoForm = { error?: string; ok?: string };
 
@@ -19,6 +26,9 @@ export type EstadoForm = { error?: string; ok?: string };
 function revalidarTodo() {
   revalidatePath("/funding-manager");
   revalidatePath("/cuentas");
+  // El Home muestra el mismo flujo de caja: si no se revalida, un gasto
+  // recién cargado aparece en una pantalla y no en la otra.
+  revalidatePath("/");
 }
 
 /* ---------- helpers de lectura del formulario ---------- */
@@ -43,6 +53,22 @@ export async function guardarGasto(
   _prev: EstadoForm,
   fd: FormData,
 ): Promise<EstadoForm> {
+  // "Se repite" no crea otra clase de cosa: es el mismo formulario
+  // guardando la plantilla en vez de una fila suelta. Si guardara las dos,
+  // el primer período quedaría cargado dos veces.
+  if (fd.get("repetir") === "si") return guardarCostoFijo(fd);
+
+  // Destildar "se repite" en un costo fijo existente: se borra la
+  // plantilla y los períodos ya generados quedan como gastos comunes. No
+  // se borra nada de lo pagado, solo deja de generar lo que viene.
+  const costoFijoId = texto(fd, "costo_fijo_id");
+  if (costoFijoId) {
+    const supabase = createClient();
+    await supabase.from("costos_fijos").delete().eq("id", costoFijoId);
+    revalidarTodo();
+    return { ok: "Ya no se repite. Los períodos cargados quedan como están." };
+  }
+
   const categoria = String(fd.get("categoria") ?? "") as Categoria;
   const monto = numero(fd, "monto");
   const fecha = texto(fd, "fecha") ?? new Date().toISOString().slice(0, 10);
@@ -138,5 +164,112 @@ function mensajeDeError(mensaje: string) {
   if (mensaje.includes("gastos_categoria_check")) {
     return "Esa categoría de gasto no existe.";
   }
+  if (mensaje.includes("costos_fijos")) {
+    return "No se pudo guardar el costo fijo. ¿Corriste supabase/014_costos_fijos.sql?";
+  }
   return mensaje;
+}
+
+/* ---------- costos fijos ---------- */
+
+/**
+ * Alta y edición de la **plantilla** de un costo fijo, no de los gastos
+ * que ya generó.
+ *
+ * La llama `guardarGasto()` con el mismo FormData: el costo fijo no tiene
+ * formulario propio, es un gasto con "se repite" puesto. Por eso lee
+ * `descripcion` como nombre y `fecha` como primer vencimiento.
+ *
+ * Cambiar el monto NO reescribe lo ya cobrado: esos meses ya se pagaron a
+ * ese precio y son historia. El monto nuevo rige de acá en adelante. Si
+ * hace falta corregir un mes puntual, se edita ese gasto en la lista.
+ */
+async function guardarCostoFijo(fd: FormData): Promise<EstadoForm> {
+  const nombre = texto(fd, "descripcion");
+  const categoria = String(fd.get("categoria") ?? "") as CategoriaCostoFijo;
+  const periodicidad = String(fd.get("periodicidad") ?? "") as Periodicidad;
+  const monto = numero(fd, "monto");
+  const fechaInicio = texto(fd, "fecha");
+  const fechaFin = texto(fd, "fecha_fin");
+
+  if (!nombre) {
+    return { error: "Ponele un nombre: es como vas a ver el gasto cada mes." };
+  }
+  if (!CATEGORIAS_COSTO_FIJO.includes(categoria)) {
+    return { error: "Esa categoría no se puede repetir." };
+  }
+  if (!PERIODICIDADES.includes(periodicidad)) {
+    return { error: "Elegí cada cuánto se paga." };
+  }
+  if (monto === null || monto <= 0) {
+    return { error: "El monto tiene que ser mayor a 0." };
+  }
+  if (!fechaInicio) return { error: "Falta la fecha del primer pago." };
+  if (fechaFin && fechaFin < fechaInicio) {
+    return { error: "La fecha de fin no puede ser anterior a la del primer pago." };
+  }
+
+  const datos = {
+    cuenta_id: texto(fd, "cuenta_id"),
+    nombre,
+    categoria,
+    monto,
+    periodicidad,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    activo: fd.get("activo") !== "no",
+    notas: null,
+  };
+
+  const supabase = createClient();
+  const id = texto(fd, "costo_fijo_id");
+
+  const { error } = id
+    ? await supabase.from("costos_fijos").update(datos).eq("id", id)
+    : await supabase.from("costos_fijos").insert(datos);
+
+  if (error) return { error: mensajeDeError(error.message) };
+
+  // Un gasto común que se marca "se repite" se convierte: la fila suelta
+  // se borra y el período vuelve a entrar generado por la plantilla. Si
+  // quedara, ese mes estaría cargado dos veces.
+  const gastoId = texto(fd, "id");
+  if (gastoId) await supabase.from("gastos").delete().eq("id", gastoId);
+
+  // Generar acá y no esperar a la próxima carga: el usuario acaba de
+  // cargar un costo que arranca en junio y tiene que ver junio, julio y
+  // agosto en la lista al cerrar el modal.
+  await generarCostosFijos(supabase);
+
+  revalidarTodo();
+  return { ok: id ? "Costo fijo actualizado." : "Costo fijo creado." };
+}
+
+/**
+ * Pausar / reanudar. Pausado deja de generar períodos nuevos y **conserva
+ * los ya generados**: diste de baja el servicio, no borraste los meses que
+ * lo pagaste.
+ */
+export async function alternarCostoFijo(id: string, activo: boolean) {
+  if (!id) return;
+
+  const supabase = createClient();
+  await supabase.from("costos_fijos").update({ activo }).eq("id", id);
+  revalidarTodo();
+}
+
+/**
+ * Borra la plantilla y **deja los gastos que generó**: son plata que
+ * saliste, borrarla cambiaría el ROI de meses ya cerrados. Los gastos
+ * quedan como gastos normales (`costo_fijo_id` pasa a null por el
+ * `on delete set null` de la migración 014).
+ *
+ * Para dejar de pagarlo sin perder de vista que existió, está pausar.
+ */
+export async function eliminarCostoFijo(id: string) {
+  if (!id) return;
+
+  const supabase = createClient();
+  await supabase.from("costos_fijos").delete().eq("id", id);
+  revalidarTodo();
 }

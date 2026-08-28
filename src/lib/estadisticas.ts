@@ -9,7 +9,7 @@
  */
 
 import { DIAS_SEMANA, type DiaHome } from "./home";
-import type { DiaJournal } from "./journal";
+import type { Sentido } from "./resultados";
 
 /* ---------- Los números del día ---------- */
 
@@ -70,110 +70,152 @@ export function estadisticasDeDias(dias: DiaHome[]): EstadisticasDias {
   };
 }
 
-/* ---------- La racha de escritura ---------- */
-
-export type RachaEscritura = {
-  /** Días operados seguidos, desde el más reciente, que tienen nota. */
-  dias: number;
-  /** false = el último día que operaste todavía no está escrito. */
-  alDia: boolean;
-  /** El día que hay que escribir para arrancar (o seguir) la racha. */
-  pendiente: string | null;
-};
+/* ---------- Los números de las operaciones ---------- */
 
 /**
- * Cuenta hacia atrás desde el último día operado.
+ * Win rate, profit factor y P&L, calculados **sobre las entradas
+ * cargadas**, no sobre los días.
  *
- * Cuenta **días operados**, no días de calendario: un fin de semana no te
- * corta la racha porque no había nada que escribir. Y si el último día que
- * operaste no está escrito, la racha es cero — no "se mantiene": el punto
- * de una racha es que duela cortarla.
- *
- * Espera los días como los devuelve `diasDeJournal()`: del más nuevo al
- * más viejo.
+ * Durante todo el MVP esto no existió a propósito: sin el sentido de cada
+ * operación, lo único que teníamos era un número por jornada y llamarle
+ * "win rate por trade" habría sido inventar. Con las operaciones cargadas
+ * de a una (2026-08-27) el número se puede calcular sin mentir, con una
+ * salvedad que la pantalla dice: **una orden replicada en cinco cuentas
+ * son cinco entradas**. Para la plata está bien —ganaste en las cinco—,
+ * para contar operaciones infla.
  */
-export function rachaDeEscritura(dias: DiaJournal[]): RachaEscritura {
-  const operados = dias.filter((d) => d.monto !== null);
+export type EstadisticasOperaciones = {
+  operaciones: number;
+  ganadoras: number;
+  perdedoras: number;
+  planas: number;
+  /** Todo lo que dejaron, sumado. */
+  pnl: number;
+  /** Qué proporción cerró en verde. null = todavía no cargaste ninguna. */
+  winRate: number | null;
+  /**
+   * Lo ganado sobre lo perdido, las dos en bruto.
+   *
+   * null cuando no hay ninguna operación perdedora: ahí la división es por
+   * cero y "infinito" no es una respuesta — es un cartel de que la
+   * pregunta todavía no aplica. Debajo de 1 estás perdiendo.
+   */
+  profitFactor: number | null;
+  bruto: { ganado: number; perdido: number };
+  /** Lo que deja una operación promedio. */
+  promedio: number | null;
+};
 
-  if (operados.length === 0) {
-    return { dias: 0, alDia: true, pendiente: null };
+export function estadisticasDeOperaciones(
+  entradas: { monto: number }[],
+): EstadisticasOperaciones {
+  let ganadoras = 0;
+  let perdedoras = 0;
+  let planas = 0;
+  let ganado = 0;
+  let perdido = 0;
+
+  for (const e of entradas) {
+    if (e.monto > 0) {
+      ganadoras += 1;
+      ganado += e.monto;
+    } else if (e.monto < 0) {
+      perdedoras += 1;
+      perdido += -e.monto;
+    } else {
+      planas += 1;
+    }
   }
 
-  if (!operados[0].escrito) {
-    return { dias: 0, alDia: false, pendiente: operados[0].fecha };
-  }
-
-  let cuenta = 0;
-  for (const d of operados) {
-    if (!d.escrito) break;
-    cuenta += 1;
-  }
+  const operaciones = entradas.length;
+  const pnl = ganado - perdido;
 
   return {
-    dias: cuenta,
-    alDia: true,
-    pendiente: cuenta < operados.length ? null : null,
+    operaciones,
+    ganadoras,
+    perdedoras,
+    planas,
+    pnl,
+    // Las planas cuentan en el denominador: operaste igual.
+    winRate: operaciones > 0 ? (ganadoras / operaciones) * 100 : null,
+    profitFactor: perdido > 0 ? ganado / perdido : null,
+    bruto: { ganado, perdido },
+    promedio: operaciones > 0 ? pnl / operaciones : null,
   };
 }
 
-/* ---------- ¿Escribir sirve? ---------- */
+/* ---------- Long vs. short ---------- */
 
 /**
- * La muestra mínima por grupo para animarse a mostrar la comparación.
+ * Cuánto dejó cada lado.
  *
- * Con menos que esto el número es ruido, y un número que miente en una
- * pantalla que te pide que escribas todos los días es peor que no mostrar
- * nada.
+ * Reemplazó a la racha de escritura y al "¿escribir te sirve?"
+ * (2026-08-27). Los dos hablaban del **hábito** de escribir, no de cómo
+ * operás: uno premiaba la constancia y el otro comparaba días escritos
+ * contra no escritos, que además era correlación y no causa. Con el
+ * sentido cargado se puede responder algo que sí cambia lo que hacés
+ * mañana: de qué lado ganás y de cuál perdés.
+ *
+ * **Cuenta entradas, no jornadas.** Cada entrada es un resultado cargado
+ * en una cuenta, así que un mismo trade replicado en cinco cuentas suma
+ * cinco veces — que es lo correcto para la plata (ganaste en las cinco)
+ * pero no para "cuántas veces operé". La pantalla lo aclara.
  */
-export const MINIMO_MUESTRA = 5;
-
-export type EfectoEscribir = {
-  suficiente: boolean;
-  /** Cuántos días faltan en el grupo más chico para llegar al mínimo. */
-  faltan: number;
-  despuesDeEscribir: { dias: number; promedio: number };
-  despuesDeNoEscribir: { dias: number; promedio: number };
-  diferencia: number;
+export type ResumenSentido = {
+  /** Cuánto dejó en total, sumado. */
+  total: number;
+  /** Cuántas entradas de ese lado. */
+  entradas: number;
+  ganadoras: number;
+  perdedoras: number;
+  /** Qué proporción cerró en verde. null = ninguna entrada de ese lado. */
+  ganadorPct: number | null;
+  /** Lo que deja una entrada promedio. null = ninguna. */
+  promedio: number | null;
 };
 
-/**
- * Compara cómo te fue **el día después** de escribir contra el día después
- * de no escribir.
- *
- * El "después" no es un detalle: la nota se escribe al cierre, así que
- * escribir **no puede** haber cambiado el resultado de ese mismo día.
- * Comparar días escritos contra no escritos sin mover la ventana sería
- * medir el efecto de una causa que ocurrió más tarde — que es una de las
- * formas más fáciles de mentir con estadística.
- *
- * Aun así esto es **correlación, no causa**: quien viene ordenado escribe
- * y además opera mejor, y las dos cosas pueden salir de lo mismo. La
- * pantalla lo dice con todas las letras.
- */
-export function efectoDeEscribir(dias: DiaJournal[]): EfectoEscribir {
-  // De más viejo a más nuevo, y solo los días que operaste.
-  const operados = dias.filter((d) => d.monto !== null).slice().reverse();
+export type PorSentido = {
+  long: ResumenSentido;
+  short: ResumenSentido;
+  /** Entradas sin lado cargado: no entran en ningún grupo. */
+  sinMarcar: number;
+  /** true = todavía no hay ninguna marcada, la comparación no aplica. */
+  vacio: boolean;
+};
 
-  const despues: number[] = [];
-  const despuesSin: number[] = [];
+function resumir(entradas: { monto: number }[]): ResumenSentido {
+  let total = 0;
+  let ganadoras = 0;
+  let perdedoras = 0;
 
-  for (let i = 1; i < operados.length; i++) {
-    const monto = operados[i].monto as number;
-    if (operados[i - 1].escrito) despues.push(monto);
-    else despuesSin.push(monto);
+  for (const e of entradas) {
+    total += e.monto;
+    if (e.monto > 0) ganadoras += 1;
+    else if (e.monto < 0) perdedoras += 1;
   }
 
-  const promedio = (xs: number[]) =>
-    xs.length === 0 ? 0 : xs.reduce((a, x) => a + x, 0) / xs.length;
+  return {
+    total,
+    entradas: entradas.length,
+    ganadoras,
+    perdedoras,
+    // Las planas cuentan en el denominador: operaste igual.
+    ganadorPct: entradas.length > 0 ? (ganadoras / entradas.length) * 100 : null,
+    promedio: entradas.length > 0 ? total / entradas.length : null,
+  };
+}
 
-  const menor = Math.min(despues.length, despuesSin.length);
+export function porSentido(
+  entradas: { monto: number; sentido: Sentido | null }[],
+): PorSentido {
+  const long = entradas.filter((e) => e.sentido === "long");
+  const short = entradas.filter((e) => e.sentido === "short");
 
   return {
-    suficiente: menor >= MINIMO_MUESTRA,
-    faltan: Math.max(0, MINIMO_MUESTRA - menor),
-    despuesDeEscribir: { dias: despues.length, promedio: promedio(despues) },
-    despuesDeNoEscribir: { dias: despuesSin.length, promedio: promedio(despuesSin) },
-    diferencia: promedio(despues) - promedio(despuesSin),
+    long: resumir(long),
+    short: resumir(short),
+    sinMarcar: entradas.length - long.length - short.length,
+    vacio: long.length === 0 && short.length === 0,
   };
 }
 

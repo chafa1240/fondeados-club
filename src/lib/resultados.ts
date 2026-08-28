@@ -40,7 +40,25 @@ export type Resultado = {
    * por las dudas, se toma el mayor.
    */
   pico_dia: number | null;
+  /**
+   * long | short. null = sin marcar: todo lo cargado antes de la 015, o
+   * una entrada que es el neto de una jornada mixta. Las estadísticas
+   * cuentan solo las marcadas.
+   */
+  sentido: Sentido | null;
   notas: string | null;
+};
+
+/** De qué lado estuviste. */
+export const SENTIDOS = ["long", "short"] as const;
+export type Sentido = (typeof SENTIDOS)[number];
+
+export const SENTIDO_INFO: Record<
+  Sentido,
+  { label: string; corto: string; flecha: string }
+> = {
+  long: { label: "Long", corto: "L", flecha: "▲" },
+  short: { label: "Short", corto: "S", flecha: "▼" },
 };
 
 /** Un día entero: la suma de sus entradas. */
