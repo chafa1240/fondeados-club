@@ -9,9 +9,16 @@ import {
   estadisticasDeOperaciones,
   porDiaSemana,
   porSentido,
+  porSesion,
   type ResumenSentido,
 } from "@/lib/estadisticas";
-import { SENTIDO_INFO, type Resultado, type Sentido } from "@/lib/resultados";
+import {
+  SENTIDO_INFO,
+  SESION_INFO,
+  type Resultado,
+  type Sentido,
+  type Sesion,
+} from "@/lib/resultados";
 
 /**
  * Las estadísticas del journal.
@@ -255,6 +262,58 @@ function Balanza({ long, short }: { long: number; short: number }) {
   );
 }
 
+/* ---------- Por sesión ---------- */
+
+/**
+ * Una plaza y lo que dejó.
+ *
+ * La barra se mide contra **la sesión que más movió en valor absoluto**,
+ * no contra el total: si una plaza dejó $900 y otra −$100, lo que se
+ * quiere ver es que una pesa nueve veces más que la otra. Contra el total
+ * neto ($800) la segunda barra saldría desproporcionada y una plaza que
+ * perdió más de lo que ganó el conjunto se saldría de la caja.
+ */
+function FilaSesion({
+  sesion,
+  datos,
+  tope,
+}: {
+  sesion: Sesion;
+  datos: ResumenSentido;
+  tope: number;
+}) {
+  const info = SESION_INFO[sesion];
+  const ancho = tope === 0 ? 0 : (Math.abs(datos.total) / tope) * 100;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs text-neutral-500">{info.label}</p>
+        <p className={`text-sm font-semibold tabular-nums ${color(datos.total)}`}>
+          {datos.entradas === 0 ? "—" : plata(datos.total)}
+        </p>
+      </div>
+
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-800">
+        <div
+          className={
+            datos.total >= 0
+              ? "h-full bg-[rgb(var(--grafico-positivo))]"
+              : "h-full bg-[rgb(var(--grafico-negativo))]"
+          }
+          style={{ width: `${ancho}%` }}
+        />
+      </div>
+
+      <p className="mt-1 text-xs text-neutral-500">
+        {datos.entradas === 0
+          ? "Sin operaciones"
+          : `${datos.entradas} op · ${porcentaje(datos.ganadorPct ?? 0, 0)} en verde · ${plata(datos.promedio ?? 0)} por op`}
+      </p>
+    </div>
+  );
+}
+
 /* ---------- El bloque entero ---------- */
 
 export function Estadisticas({
@@ -272,6 +331,11 @@ export function Estadisticas({
   const stats = estadisticasDeDias(diasTrading);
   const ops = estadisticasDeOperaciones(entradas);
   const lados = porSentido(entradas);
+  const plazas = porSesion(entradas);
+  const topeSesion = Math.max(
+    ...plazas.sesiones.map((p) => Math.abs(p.datos.total)),
+    0,
+  );
 
   return (
     <div className="space-y-4">
@@ -398,8 +462,45 @@ export function Estadisticas({
           )}
         </div>
 
-        {/* Por día de la semana */}
+        {/* Por sesión */}
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <p className="text-sm font-medium">Por sesión</p>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Cuánto dejó cada plaza, sumando todas las operaciones cargadas.
+          </p>
+
+          {plazas.vacio ? (
+            <p className="mt-4 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
+              Todavía no marcaste la sesión de ninguna operación. El selector
+              está al cargar el resultado del día — desde acá mismo o desde la
+              tarjeta de la cuenta.
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 space-y-3">
+                {plazas.sesiones.map((p) => (
+                  <FilaSesion
+                    key={p.sesion}
+                    sesion={p.sesion}
+                    datos={p.datos}
+                    tope={topeSesion}
+                  />
+                ))}
+              </div>
+
+              <p className="mt-3 text-xs text-neutral-500">
+                Cada operación cuenta en una sola plaza: la de cierre. Si
+                marcaste dos, la plata va a la que abrió después.
+                {plazas.sinMarcar > 0
+                  ? ` Quedan ${plazas.sinMarcar} sin sesión, afuera de las tres.`
+                  : ""}
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Por día de la semana */}
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 lg:col-span-2">
           <p className="text-sm font-medium">Por día de la semana</p>
           <p className="mt-0.5 text-xs text-neutral-500">
             Todo lo que dejó cada día, sumado.

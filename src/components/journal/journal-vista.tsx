@@ -175,6 +175,7 @@ export function JournalVista({
         cuenta: nombres[r.cuenta_id] ?? "—",
         monto: r.monto,
         sentido: r.sentido,
+        sesiones: r.sesiones,
         notas: r.notas,
       }));
   }, [abierto, resultadosDelTipo, nombres]);

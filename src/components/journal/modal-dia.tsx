@@ -11,8 +11,15 @@ import {
 } from "@/app/(app)/cuentas/resultados-actions";
 import { enJuego, fechaCorta, plata, trailea, type Tipo } from "@/lib/cuentas";
 import type { CuentaJournal, DiaJournal } from "@/lib/journal";
-import { SENTIDO_INFO, type Sentido } from "@/lib/resultados";
+import {
+  SENTIDO_INFO,
+  SESION_INFO,
+  sesionQueCuenta,
+  type Sentido,
+  type Sesion,
+} from "@/lib/resultados";
 import { SelectorSentido } from "@/components/selector-sentido";
+import { SelectorSesion } from "@/components/selector-sesion";
 
 /**
  * El día abierto: lo que pasó arriba, lo que escribís abajo.
@@ -76,6 +83,9 @@ function AltaResultado({
   // No se limpia al guardar, igual que las cuentas elegidas: el segundo
   // trade del día suele ir para el mismo lado y en las mismas cuentas.
   const [sentido, setSentido] = useState<Sentido | null>(null);
+  // Tampoco se limpia: el segundo trade del día cae casi siempre en la
+  // misma sesión que el primero.
+  const [sesiones, setSesiones] = useState<Sesion[]>([]);
 
   // Cambiar de día limpia el formulario: cargar un resultado en la fecha
   // equivocada es de los errores más caros y más fáciles de cometer.
@@ -83,6 +93,7 @@ function AltaResultado({
     setMonto("");
     setMaximo("");
     setElegidas([]);
+    setSesiones([]);
   }, [fecha]);
 
   // Se limpia el monto pero **no** las cuentas elegidas: si cargás dos
@@ -185,6 +196,8 @@ function AltaResultado({
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <SelectorSentido valor={sentido} onCambiar={setSentido} compacto />
 
+        <SelectorSesion valor={sesiones} onCambiar={setSesiones} compacto />
+
         <label className="w-32">
           <span className="sr-only">Resultado en dólares</span>
           <input
@@ -238,7 +251,7 @@ function AltaResultado({
  * obligaba a ir hasta Cuentas, buscar la tarjeta y abrir otro modal para
  * arreglar algo que se hizo en dos segundos.
  *
- * Se editan **el monto y el lado, nada más**. El máximo del día y el %
+ * Se editan **el monto, el lado y la sesión, nada más**. El máximo del día y el %
  * siguen siendo del formulario grande de Cuentas: el máximo es del día y
  * no de la entrada, y el % lo recalcula la action con el tamaño de la
  * cuenta. Un editor a medias que igual escribe todos los campos es peor
@@ -252,6 +265,7 @@ function FilaEntrada({
     cuenta: string;
     monto: number;
     sentido: Sentido | null;
+    sesiones: Sesion[] | null;
     notas: string | null;
   };
 }) {
@@ -264,6 +278,7 @@ function FilaEntrada({
 
   const [monto, setMonto] = useState(String(entrada.monto));
   const [sentido, setSentido] = useState<Sentido | null>(entrada.sentido);
+  const [sesiones, setSesiones] = useState<Sesion[]>(entrada.sesiones ?? []);
 
   // Al guardar, la fila vuelve a modo lectura. El valor nuevo llega solo
   // por el revalidate del server.
@@ -295,6 +310,8 @@ function FilaEntrada({
 
           <SelectorSentido valor={sentido} onCambiar={setSentido} />
 
+          <SelectorSesion valor={sesiones} onCambiar={setSesiones} />
+
           <GuardarEntrada />
 
           <button
@@ -302,6 +319,7 @@ function FilaEntrada({
             onClick={() => {
               setMonto(String(entrada.monto));
               setSentido(entrada.sentido);
+              setSesiones(entrada.sesiones ?? []);
               setEditando(false);
             }}
             className="text-xs text-neutral-500 transition hover:text-neutral-200"
@@ -331,6 +349,20 @@ function FilaEntrada({
           </span>
         )}
         <span className="text-neutral-300">{entrada.cuenta}</span>
+        {sesionQueCuenta(entrada.sesiones) && (
+          <span
+            className="ml-2 text-xs text-sky-400/80"
+            title={
+              (entrada.sesiones ?? []).length > 1
+                ? `${(entrada.sesiones ?? [])
+                    .map((x) => SESION_INFO[x].label)
+                    .join(" → ")} · cuenta para la de cierre`
+                : undefined
+            }
+          >
+            {SESION_INFO[sesionQueCuenta(entrada.sesiones)!].corto}
+          </span>
+        )}
         {entrada.notas && (
           <span className="ml-2 text-xs text-neutral-500">{entrada.notas}</span>
         )}
@@ -424,6 +456,7 @@ export function ModalDia({
     cuenta: string;
     monto: number;
     sentido: Sentido | null;
+    sesiones: Sesion[] | null;
     notas: string | null;
   }[];
   anterior: string | null;

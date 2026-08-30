@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { SENTIDOS, pctDeResultado, type Sentido } from "@/lib/resultados";
+import {
+  SENTIDOS,
+  SESIONES,
+  pctDeResultado,
+  type Sentido,
+  type Sesion,
+} from "@/lib/resultados";
 
 export type EstadoForm = { error?: string; ok?: string };
 
@@ -18,6 +24,32 @@ function numero(fd: FormData, campo: string) {
   if (v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Las sesiones marcadas, **conservando el orden en que vinieron**.
+ *
+ * El orden es dato: con las tres marcadas, la plata cuenta para la
+ * última (ver `sesionQueCuenta()`). Por eso no se ordena ni se pasa por
+ * un Set — se filtra lo que no existe, se sacan las repetidas y se deja
+ * el resto como llegó.
+ *
+ * Un valor raro se descarta en vez de romper el alta: perder la sesión
+ * es molesto, perder el resultado del día es peor.
+ */
+function sesionesDe(fd: FormData): Sesion[] | null {
+  const crudo = String(fd.get("sesiones") ?? "").trim();
+  if (crudo === "") return null;
+
+  const limpias: Sesion[] = [];
+  for (const parte of crudo.split(",")) {
+    const s = parte.trim();
+    if (SESIONES.includes(s as Sesion) && !limpias.includes(s as Sesion)) {
+      limpias.push(s as Sesion);
+    }
+  }
+
+  return limpias.length === 0 ? null : limpias;
 }
 
 /** "2026-08-18" -> "2026-08-17", sin pasar por zonas horarias. */
@@ -81,6 +113,7 @@ export async function guardarResultado(
     pct: numero(fd, "pct"),
     pico_dia,
     sentido,
+    sesiones: sesionesDe(fd),
     notas: texto(fd, "notas"),
   };
 
@@ -145,6 +178,7 @@ export async function guardarEnVariasCuentas(
   const monto = String(fd.get("monto") ?? "");
   const pico = String(fd.get("pico_dia") ?? "");
   const sentido = String(fd.get("sentido") ?? "");
+  const sesiones = String(fd.get("sesiones") ?? "");
   const notas = String(fd.get("notas") ?? "");
 
   let guardadas = 0;
@@ -159,6 +193,9 @@ export async function guardarEnVariasCuentas(
     // El lado viaja a todas: replicar es copiar la misma orden, y una
     // orden replicada es long en las cinco cuentas o short en las cinco.
     if (sentido) uno.set("sentido", sentido);
+    // La sesión también viaja a todas, y por lo mismo: la orden se copió
+    // a las cinco cuentas en el mismo momento del día.
+    if (sesiones) uno.set("sesiones", sesiones);
     if (notas) uno.set("notas", notas);
 
     const r = await guardarResultado({}, uno);
@@ -183,7 +220,7 @@ export async function guardarEnVariasCuentas(
 }
 
 /**
- * Corregir una entrada desde el journal: el monto y el lado, nada más.
+ * Corregir una entrada desde el journal: el monto, el lado y la sesión.
  *
  * Existe aparte de `guardarResultado()` porque el journal **no conoce
  * todos los campos de la entrada**: no tiene el tamaño de la cuenta para
@@ -192,7 +229,7 @@ export async function guardarEnVariasCuentas(
  * borrar el máximo del día al corregir un monto es justo el error que
  * infla el colchón del drawdown.
  *
- * Acá se tocan exactamente dos columnas y el `pct` se **recalcula** con el
+ * Acá se tocan solo esas columnas y el `pct` se **recalcula** con el
  * tamaño de la cuenta leído de la base: si cambió el monto y el % quedara
  * viejo, los dos números dirían cosas distintas de la misma entrada.
  * El máximo del día no se toca: es del día, no de la entrada, y para eso
@@ -237,7 +274,7 @@ export async function corregirEntrada(
 
   const { error } = await supabase
     .from("resultados_diarios")
-    .update({ monto, pct, sentido })
+    .update({ monto, pct, sentido, sesiones: sesionesDe(fd) })
     .eq("id", id);
 
   if (error) return { error: mensajeDeError(error.message) };
@@ -336,6 +373,9 @@ function mensajeDeError(mensaje: string) {
   }
   if (mensaje.includes("sentido")) {
     return "Falta correr supabase/015_long_short.sql en el SQL Editor de Supabase.";
+  }
+  if (mensaje.includes("sesiones")) {
+    return "Falta correr supabase/016_sesiones.sql en el SQL Editor de Supabase.";
   }
   if (mensaje.includes("does not exist") || mensaje.includes("schema cache")) {
     return "Falta correr supabase/011_resultados_diarios.sql en el SQL Editor de Supabase.";

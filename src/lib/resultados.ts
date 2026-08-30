@@ -46,6 +46,16 @@ export type Resultado = {
    * cuentan solo las marcadas.
    */
   sentido: Sentido | null;
+  /**
+   * En qué sesiones estuvo la operación, **en el orden en que se
+   * marcaron**. null o vacío = sin marcar (todo lo cargado antes de la
+   * 016, o una entrada que no se quiso clasificar).
+   *
+   * Son varias y no una porque un trade puede cruzar de plaza: entrás en
+   * Londres y cerrás cuando ya abrió Nueva York. A qué sesión se le
+   * imputa la plata lo decide `sesionQueCuenta()`, no esta lista.
+   */
+  sesiones: Sesion[] | null;
   notas: string | null;
 };
 
@@ -60,6 +70,62 @@ export const SENTIDO_INFO: Record<
   long: { label: "Long", corto: "L", flecha: "▲" },
   short: { label: "Short", corto: "S", flecha: "▼" },
 };
+
+/* ---------- Sesiones ---------- */
+
+/**
+ * Las tres plazas, **en el orden en que abren**.
+ *
+ * El orden no es decorativo: es el que usa `sesionQueCuenta()` para saber
+ * cuál de dos sesiones marcadas viene después. Si alguna vez se agrega
+ * una cuarta (overnight), va en su lugar cronológico o la regla deja de
+ * funcionar.
+ */
+export const SESIONES = ["asia", "londres", "ny"] as const;
+export type Sesion = (typeof SESIONES)[number];
+
+export const SESION_INFO: Record<
+  Sesion,
+  { label: string; corto: string; horario: string }
+> = {
+  asia: { label: "Asia", corto: "AS", horario: "Tokio / Sídney" },
+  londres: { label: "Londres", corto: "LO", horario: "Apertura europea" },
+  ny: { label: "Nueva York", corto: "NY", horario: "Apertura americana" },
+};
+
+/**
+ * A qué sesión se le imputa la plata de una entrada.
+ *
+ * La regla es **"donde cerró"**: si marcaste dos sesiones, la operación
+ * empezó en una y terminó en la otra, y lo que dejó cuenta para la
+ * segunda. Cuál es la segunda lo dice el reloj, no el orden en que
+ * tocaste los chips — el ciclo es Asia → Londres → Nueva York → Asia,
+ * así que Londres+NY cuenta para NY, NY+Asia cuenta para Asia (la de la
+ * rueda siguiente) y Asia+Londres cuenta para Londres. Con dos marcadas
+ * siempre hay una sola respuesta: de cada par, exactamente una tiene a la
+ * otra justo antes.
+ *
+ * **Con las tres marcadas el reloj no alcanza** — cada una viene después
+ * de otra y la vuelta se cierra sobre sí misma. Ahí manda el orden en que
+ * se marcaron y gana la última: es lo único que sabemos de la intención
+ * del usuario, y es la que tocó pensando en el cierre.
+ *
+ * No se guarda en la base a propósito: es un derivado del array, y una
+ * columna derivada queda vieja el día que se corrige la entrada.
+ */
+export function sesionQueCuenta(sesiones: Sesion[] | null): Sesion | null {
+  if (!sesiones || sesiones.length === 0) return null;
+  if (sesiones.length === 1) return sesiones[0];
+
+  // Con tres (o algo raro que llegó de la base), la última marcada.
+  if (sesiones.length !== 2) return sesiones[sesiones.length - 1];
+
+  const anterior = (s: Sesion) =>
+    SESIONES[(SESIONES.indexOf(s) + SESIONES.length - 1) % SESIONES.length];
+
+  // La que tiene a la otra justo antes en el ciclo: esa es la de cierre.
+  return sesiones.find((s) => sesiones.includes(anterior(s))) ?? sesiones[1];
+}
 
 /** Un día entero: la suma de sus entradas. */
 export type DiaResultado = {

@@ -9,7 +9,12 @@
  */
 
 import { DIAS_SEMANA, type DiaHome } from "./home";
-import type { Sentido } from "./resultados";
+import {
+  SESIONES,
+  sesionQueCuenta,
+  type Sentido,
+  type Sesion,
+} from "./resultados";
 
 /* ---------- Los números del día ---------- */
 
@@ -216,6 +221,56 @@ export function porSentido(
     short: resumir(short),
     sinMarcar: entradas.length - long.length - short.length,
     vacio: long.length === 0 && short.length === 0,
+  };
+}
+
+/* ---------- Por sesión ---------- */
+
+/**
+ * Cuánto dejó cada plaza: Asia, Londres y Nueva York.
+ *
+ * Reusa `ResumenSentido` porque la pregunta es la misma —cuánto dejó,
+ * cuántas operaciones, qué proporción en verde— y tener dos tipos iguales
+ * con distinto nombre es la forma más rápida de que uno de los dos quede
+ * atrás.
+ *
+ * **Cada entrada cuenta en una sola sesión**, la de cierre
+ * (`sesionQueCuenta()`). Repartir una operación entre dos plazas obligaría
+ * a inventar cómo se parte la plata —¿mitad y mitad?— y el total dejaría
+ * de coincidir con el P&L, que es la primera cosa que alguien controla.
+ *
+ * Igual que long/short: cuenta **entradas, no jornadas**. La misma orden
+ * replicada en cinco cuentas suma cinco veces.
+ */
+export type PorSesion = {
+  sesiones: { sesion: Sesion; datos: ResumenSentido }[];
+  /** Entradas sin sesión marcada: no entran en ninguna. */
+  sinMarcar: number;
+  /** true = todavía no hay ninguna marcada, la comparación no aplica. */
+  vacio: boolean;
+};
+
+export function porSesion(
+  entradas: { monto: number; sesiones: Sesion[] | null }[],
+): PorSesion {
+  const grupos = new Map<Sesion, { monto: number }[]>(
+    SESIONES.map((s) => [s, []]),
+  );
+  let sinMarcar = 0;
+
+  for (const e of entradas) {
+    const s = sesionQueCuenta(e.sesiones);
+    if (s === null) sinMarcar += 1;
+    else grupos.get(s)!.push(e);
+  }
+
+  return {
+    sesiones: SESIONES.map((sesion) => ({
+      sesion,
+      datos: resumir(grupos.get(sesion)!),
+    })),
+    sinMarcar,
+    vacio: sinMarcar === entradas.length,
   };
 }
 

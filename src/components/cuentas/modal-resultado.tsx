@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { SelectorSentido } from "@/components/selector-sentido";
+import { SelectorSesion } from "@/components/selector-sesion";
 import {
   eliminarResultado,
   guardarResultado,
@@ -21,10 +22,13 @@ import {
   entradasDelDia,
   maximoDelDia,
   SENTIDO_INFO,
+  SESION_INFO,
   montoDeResultado,
   pctDeResultado,
+  sesionQueCuenta,
   type Resultado,
   type Sentido,
+  type Sesion,
 } from "@/lib/resultados";
 
 const INPUT =
@@ -103,6 +107,20 @@ function FilaEntrada({
           </span>
         )}
         <Monto valor={entrada.monto} clase="text-sm" />
+        {sesionQueCuenta(entrada.sesiones) && (
+          <span
+            className="ml-2 text-xs text-sky-400/80"
+            title={
+              (entrada.sesiones ?? []).length > 1
+                ? `${(entrada.sesiones ?? [])
+                    .map((x) => SESION_INFO[x].label)
+                    .join(" → ")} · cuenta para la de cierre`
+                : undefined
+            }
+          >
+            {SESION_INFO[sesionQueCuenta(entrada.sesiones)!].corto}
+          </span>
+        )}
         {entrada.notas && (
           <span className="ml-2 text-xs text-neutral-500">{entrada.notas}</span>
         )}
@@ -203,6 +221,9 @@ export function ModalResultado({
   const [pct, setPct] = useState("");
   const [notas, setNotas] = useState("");
   const [sentido, setSentido] = useState<Sentido | null>(null);
+  // Tampoco se limpia al guardar: el segundo trade del día casi siempre
+  // cae en la misma sesión que el primero.
+  const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   /**
    * Se prende al guardar un día y se apaga si decís que no.
@@ -272,6 +293,7 @@ export function ModalResultado({
     setPct(entrada.pct !== null ? String(entrada.pct) : "");
     setNotas(entrada.notas ?? "");
     setSentido(entrada.sentido ?? null);
+    setSesiones(entrada.sesiones ?? []);
   }
 
   function cambiarMonto(v: string) {
@@ -462,6 +484,18 @@ export function ModalResultado({
             <span className="mt-1 block text-xs text-neutral-500">
               Opcional. Si el número es el neto de un día en que operaste
               para los dos lados, dejalo sin marcar.
+            </span>
+          </div>
+
+          <div className="block">
+            <span className="mb-1.5 block text-sm text-neutral-300">
+              Sesión
+            </span>
+            <SelectorSesion valor={sesiones} onCambiar={setSesiones} />
+            <span className="mt-1 block text-xs text-neutral-500">
+              Opcional. Si la operación cruzó de plaza, marcá las dos: la
+              plata cuenta para la de cierre. Con las tres marcadas cuenta
+              para la última que toques.
             </span>
           </div>
 
