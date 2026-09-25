@@ -369,6 +369,20 @@ export function armarMes(
   const semanas: Semana[] = [];
   let actual: (Celda | null)[] = Array(offset).fill(null);
 
+  // La semana calendario de estas celdas de relleno sigue siendo una
+  // semana real (ej. el lunes 31/8 de la semana que arranca la grilla de
+  // septiembre): el dato de ese día ya está en `dias` -viene sin filtrar
+  // por mes-, así que se suma al total de **esa** semana aunque la celda
+  // se dibuje vacía por no ser de este mes. Sin esto, esa semana aparecía
+  // incompleta en las dos vistas: en agosto le faltaban los días de
+  // adelante, en septiembre el lunes de atrás.
+  let extraSemanaInicial = 0;
+  for (let i = 1; i <= offset; i++) {
+    const fecha = new Date(primero - i * DIAS_MS).toISOString().slice(0, 10);
+    const dia = porFecha.get(fecha);
+    if (dia) extraSemanaInicial += dia.monto;
+  }
+
   let total = 0;
   let diasConDatos = 0;
   let ganadores = 0;
@@ -403,9 +417,30 @@ export function armarMes(
     }
   }
 
+  // Mismo caso que arriba, del otro lado: los días que le faltan a la
+  // última semana para llegar al domingo ya cayeron en el mes siguiente.
+  let extraSemanaFinal = 0;
   if (actual.length > 0) {
+    const faltan = 7 - actual.length;
+    for (let i = 0; i < faltan; i++) {
+      const fecha = new Date(primero + (cantidadDias + i) * DIAS_MS)
+        .toISOString()
+        .slice(0, 10);
+      const dia = porFecha.get(fecha);
+      if (dia) extraSemanaFinal += dia.monto;
+    }
     while (actual.length < 7) actual.push(null);
     semanas.push(cerrarSemana(actual));
+  }
+
+  if (semanas.length > 0 && extraSemanaInicial !== 0) {
+    semanas[0].total += extraSemanaInicial;
+    semanas[0].conDatos = true;
+  }
+  if (semanas.length > 0 && extraSemanaFinal !== 0) {
+    const ultima = semanas[semanas.length - 1];
+    ultima.total += extraSemanaFinal;
+    ultima.conDatos = true;
   }
 
   return { mes, semanas, total, diasConDatos, ganadores, perdedores };
@@ -443,4 +478,50 @@ export function hoyLocal() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
+}
+
+/**
+ * El "día operativo" para CARGAR UN RESULTADO: la fecha de `hoyLocal()`,
+ * adelantada un día desde que reabre el mercado tras el cierre de Nueva
+ * York (Globex: 18:00 hora de Nueva York, todos los días).
+ *
+ * Por qué por hora de Nueva York y no una hora fija de Buenos Aires:
+ * Argentina no tiene horario de verano desde 2009, pero EE.UU. sí, así
+ * que la reapertura cae entre las 19 y las 20 en Buenos Aires según la
+ * época del año. Calcular sobre la hora de Nueva York (con `Intl`, que
+ * ya sabe cuándo rige el horario de verano allá) evita tener que
+ * actualizar un número fijo dos veces por año.
+ *
+ * Solo se usa acá, en el formulario de carga: el "Hoy" del Home y la
+ * celda resaltada del calendario siguen el día de calendario real, sin
+ * este adelanto — mezclar los dos sentidos de "hoy" en el mismo lugar es
+ * más confuso que tener dos funciones con nombres distintos.
+ *
+ * El fin de semana no es un adelanto de un día más: el mercado cierra el
+ * viernes después del cierre de Nueva York y no reabre hasta el domingo
+ * a la noche, así que ni el sábado ni el domingo (antes de esa reapertura)
+ * son una jornada operativa real. Los dos casos saltan directo al lunes:
+ * "sábado" no existe como día para cargar un resultado.
+ */
+export function diaOperativoLocal() {
+  const horaNY = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date())
+  );
+
+  const [anio, mes, dia] = hoyLocal().split("-").map(Number);
+  const avance = horaNY < 18 ? 0 : 1;
+  const base = new Date(Date.UTC(anio, mes - 1, dia + avance));
+
+  // 0 = domingo, 6 = sábado. Los dos casos empujan al lunes siguiente:
+  // sábado necesita +2, domingo (que a esta altura solo puede ser el
+  // domingo de día, antes de la reapertura) necesita +1.
+  const diaSemana = base.getUTCDay();
+  if (diaSemana === 6) base.setUTCDate(base.getUTCDate() + 2);
+  else if (diaSemana === 0) base.setUTCDate(base.getUTCDate() + 1);
+
+  return base.toISOString().slice(0, 10);
 }

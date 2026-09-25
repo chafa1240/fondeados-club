@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal } from "@/lib/home";
+
 import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { guardarCuenta, type EstadoForm } from "@/app/(app)/cuentas/actions";
@@ -353,7 +355,7 @@ export function ModalCuenta({
   const [tamano, setTamano] = useState(texto(cuenta?.tamano_cuenta));
   // Controlada porque es el mínimo posible para la fecha de cierre.
   const [fechaInicio, setFechaInicio] = useState(
-    cuenta?.fecha_inicio ?? new Date().toISOString().slice(0, 10)
+    cuenta?.fecha_inicio ?? hoyLocal()
   );
   const tamanoNum = aNumero(tamano) || 0;
 
@@ -1022,7 +1024,7 @@ export function ModalCuenta({
                   name="fecha_cierre"
                   type="date"
                   min={fechaInicio}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={hoyLocal()}
                   defaultValue={cuenta?.fecha_cierre ?? ""}
                   className={INPUT}
                 />

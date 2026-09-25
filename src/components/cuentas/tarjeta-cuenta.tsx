@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal } from "@/lib/home";
+
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
@@ -201,7 +203,7 @@ function ModalCierre({
   onConfirmar: (fecha: string | null) => Promise<string | null>;
   onCerrar: () => void;
 }) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   // No puede haber terminado antes de arrancar, ni en el futuro.
   const minimo = cuenta.fecha_inicio;
   const [fecha, setFecha] = useState(

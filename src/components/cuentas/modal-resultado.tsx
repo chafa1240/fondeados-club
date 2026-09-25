@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { BotonSigno } from "@/components/boton-signo";
 import { SelectorSentido } from "@/components/selector-sentido";
 import { SelectorSesion } from "@/components/selector-sesion";
 import {
@@ -17,6 +18,7 @@ import {
   trailea,
   type Cuenta,
 } from "@/lib/cuentas";
+import { diaOperativoLocal } from "@/lib/home";
 import {
   agruparPorDia,
   entradasDelDia,
@@ -215,7 +217,12 @@ export function ModalResultado({
     {}
   );
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  // El "día operativo" adelanta la sugerencia y el tope después de que
+  // reabre el mercado tras Nueva York (18hs NY, ~19-20hs Buenos Aires
+  // según la época del año): cargar la sesión de Asia de esta noche va
+  // fechado mañana, no hoy. `hoyLocal()` puro se sigue usando en el
+  // resto de la app (Home, calendario): esto es solo para este form.
+  const hoy = diaOperativoLocal();
   const [fecha, setFecha] = useState(hoy);
   const [monto, setMonto] = useState("");
   const [pct, setPct] = useState("");
@@ -235,6 +242,8 @@ export function ModalResultado({
    * escribe tres días más tarde o no se escribe nunca.
    */
   const [invita, setInvita] = useState(false);
+  /** Aviso de que la cuenta se cerró sola (quemada o passed) al guardar. */
+  const [avisoCierre, setAvisoCierre] = useState<string | null>(null);
 
   const delDia = entradasDelDia(resultados, fecha);
   const netoDelDia = delDia.reduce((a, r) => a + r.monto, 0);
@@ -324,6 +333,10 @@ export function ModalResultado({
       limpiar();
       setInvita(true);
     }
+    // El aviso de cierre automático se guarda aparte y no se pisa con la
+    // próxima carga hasta que el usuario lo cierra a mano: si guardás
+    // varias entradas seguidas después de quemarte, seguís viéndolo.
+    if (estado.cierre) setAvisoCierre(estado.cierre);
   }, [estado, limpiar]);
 
   // Cambiar de día se lleva la invitación puesta: es del día que guardaste.
@@ -419,18 +432,21 @@ export function ModalResultado({
               <span className="mb-1.5 block text-sm text-neutral-300">
                 Resultado (USD)
               </span>
-              <input
-                name="monto"
-                required
-                inputMode="decimal"
-                autoFocus
-                placeholder="481.46"
-                value={monto}
-                onChange={(e) => cambiarMonto(e.target.value)}
-                className={INPUT}
-              />
+              <div className="flex gap-1.5">
+                <BotonSigno valor={monto} onCambiar={cambiarMonto} />
+                <input
+                  name="monto"
+                  required
+                  inputMode="decimal"
+                  autoFocus
+                  placeholder="481.46"
+                  value={monto}
+                  onChange={(e) => cambiarMonto(e.target.value)}
+                  className={INPUT}
+                />
+              </div>
               <span className="mt-1 block text-xs text-neutral-500">
-                Negativo si perdiste: −253.74
+                Tocá el signo para marcarlo como pérdida.
               </span>
             </label>
 
@@ -520,6 +536,19 @@ export function ModalResultado({
             <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-400">
               {estado.error}
             </p>
+          )}
+
+          {avisoCierre && (
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+              <p className="text-sm font-medium text-amber-300">{avisoCierre}</p>
+              <button
+                type="button"
+                onClick={() => setAvisoCierre(null)}
+                className="shrink-0 text-sm text-amber-400/70 transition hover:text-amber-300"
+              >
+                Cerrar
+              </button>
+            </div>
           )}
 
           {invita && (

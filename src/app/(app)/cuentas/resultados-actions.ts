@@ -2,15 +2,37 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { cambiarEstado } from "./actions";
 import {
+  balanceAlPasar,
+  enJuego,
+  pisoDrawdown,
+  type Cuenta,
+  type Retiro,
+} from "@/lib/cuentas";
+import {
+  estadoDeCuenta,
+  pctDeResultado,
   SENTIDOS,
   SESIONES,
-  pctDeResultado,
+  type Resultado,
   type Sentido,
   type Sesion,
 } from "@/lib/resultados";
 
-export type EstadoForm = { error?: string; ok?: string };
+export type EstadoForm = {
+  error?: string;
+  ok?: string;
+  /**
+   * Aviso de que la cuenta se cerró sola (quemada o passed) al guardar
+   * este resultado. Separado de `ok` a propósito: `ok` dispara el
+   * "vaciar el formulario" en un useEffect que compara por referencia
+   * (ver el comentario ahí), así que meterle un texto que cambia según
+   * si hubo cierre o no rompería esa comparación. Los componentes lo
+   * muestran en un cartel aparte, más visible que el mensaje de éxito.
+   */
+  cierre?: string;
+};
 
 function texto(fd: FormData, campo: string) {
   const v = String(fd.get(campo) ?? "").trim();
@@ -136,6 +158,7 @@ export async function guardarResultado(
 
   await dejarUnSoloMaximo(cuenta_id, fecha, guardado?.id ?? null, pico_dia);
   await correrSemilla(cuenta_id, fecha);
+  const avisoCierre = await revisarCierreAutomatico(cuenta_id, fecha);
 
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
@@ -143,7 +166,11 @@ export async function guardarResultado(
   // resultado desde el journal no se ve hasta recargar a mano.
   revalidatePath("/journal");
   revalidatePath("/");
-  return { ok: id ? "Entrada corregida." : "Entrada agregada." };
+
+  return {
+    ok: id ? "Entrada corregida." : "Entrada agregada.",
+    cierre: avisoCierre ?? undefined,
+  };
 }
 
 /**
@@ -183,6 +210,10 @@ export async function guardarEnVariasCuentas(
 
   let guardadas = 0;
   const errores: string[] = [];
+  // Replicar en varias cuentas es justo el caso donde más de una se
+  // puede quemar con la misma carga — se juntan todos los avisos, no
+  // solo el primero.
+  const avisosCierre: string[] = [];
 
   for (const cuenta_id of ids) {
     const uno = new FormData();
@@ -199,15 +230,22 @@ export async function guardarEnVariasCuentas(
     if (notas) uno.set("notas", notas);
 
     const r = await guardarResultado({}, uno);
-    if (r.error) errores.push(r.error);
-    else guardadas += 1;
+    if (r.error) {
+      errores.push(r.error);
+    } else {
+      guardadas += 1;
+      if (r.cierre) avisosCierre.push(r.cierre);
+    }
   }
 
   if (guardadas === 0) return { error: errores[0] ?? "No se pudo guardar." };
 
+  const cierre = avisosCierre.length > 0 ? avisosCierre.join(" ") : undefined;
+
   if (errores.length > 0) {
     return {
       ok: `Guardado en ${guardadas} de ${ids.length} cuentas. En las otras: ${errores[0]}`,
+      cierre,
     };
   }
 
@@ -216,6 +254,7 @@ export async function guardarEnVariasCuentas(
       guardadas === 1
         ? "Entrada agregada."
         : `Entrada agregada en ${guardadas} cuentas.`,
+    cierre,
   };
 }
 
@@ -255,7 +294,7 @@ export async function corregirEntrada(
 
   const { data: entrada } = await supabase
     .from("resultados_diarios")
-    .select("cuenta_id")
+    .select("cuenta_id, fecha")
     .eq("id", id)
     .single();
 
@@ -279,11 +318,17 @@ export async function corregirEntrada(
 
   if (error) return { error: mensajeDeError(error.message) };
 
+  // Corregir un monto también puede ser lo que cruza el piso o el
+  // objetivo por primera vez — mismo chequeo que al cargar.
+  const avisoCierre = entrada?.cuenta_id
+    ? await revisarCierreAutomatico(entrada.cuenta_id, entrada.fecha)
+    : null;
+
   revalidatePath("/cuentas");
   revalidatePath("/funding-manager");
   revalidatePath("/journal");
   revalidatePath("/");
-  return { ok: "Entrada corregida." };
+  return { ok: "Entrada corregida.", cierre: avisoCierre ?? undefined };
 }
 
 /**
@@ -324,6 +369,96 @@ async function dejarUnSoloMaximo(
  * El balance de partida no se toca: lo único que cambia es desde cuándo se
  * empieza a sumar, así el día recién cargado entra en la cuenta.
  */
+/**
+ * Después de guardar un resultado, revisa si la cuenta se cierra sola:
+ * **quemada** si el balance de hoy tocó o pasó el piso del drawdown,
+ * **passed** si una evaluación llegó al 100% del profit target.
+ *
+ * Mira para adelante nada más, con el estado de HOY de la cuenta
+ * (`enJuego()` descarta cuentas ya cerradas o archivadas). Si más tarde
+ * corregís un día viejo y eso hace que "ya no debería" haberse quemado,
+ * no la reabre sola: cerrarse es automático, pero reabrir sigue siendo
+ * una decisión del usuario, a mano, con el botón de siempre.
+ *
+ * Reusa `cambiarEstado()` — la misma action del menú ⋯ — para no duplicar
+ * lo que hace al cerrar una cuenta (fecha de cierre, snap del balance al
+ * objetivo en las evaluaciones pasadas).
+ *
+ * Devuelve un aviso para mostrarlo en el formulario, o null si no pasó
+ * nada.
+ */
+async function revisarCierreAutomatico(
+  cuenta_id: string,
+  fecha: string,
+): Promise<string | null> {
+  const supabase = createClient();
+
+  const { data: cuentaCruda } = await supabase
+    .from("cuentas_fondeo")
+    .select("*")
+    .eq("id", cuenta_id)
+    .single();
+
+  if (!cuentaCruda) return null;
+  const cuenta = cuentaCruda as Cuenta;
+
+  if (!enJuego(cuenta.estado)) return null;
+
+  const [{ data: resultados }, { data: payouts }] = await Promise.all([
+    supabase.from("resultados_diarios").select("*").eq("cuenta_id", cuenta_id),
+    supabase.from("payouts").select("*").eq("cuenta_id", cuenta_id),
+  ]);
+
+  const curva = estadoDeCuenta(
+    cuenta,
+    (resultados ?? []) as Resultado[],
+    (payouts ?? []) as Retiro[],
+  );
+
+  // Mismo truco que en cuentas/page.tsx: se "completa" la cuenta con el
+  // balance y el pico recién calculados antes de pasarla a las funciones
+  // que dan por sentado que esos campos ya están al día.
+  const cuentaCompletada: Cuenta = {
+    ...cuenta,
+    balance_actual: curva.balance,
+    pico_semilla: curva.pico,
+  };
+
+  const piso = pisoDrawdown(cuentaCompletada);
+  if (piso !== null && curva.balance <= piso) {
+    // La fecha del cierre es la del primer día en que **ese día**
+    // cruzó **su propio** piso, no la de la entrada que acabás de
+    // cargar: en trailing el piso sube con el pico, así que el piso de
+    // hoy no es el piso que regía cuando la cuenta se quemó de verdad.
+    // `serie[].piso` ya lo tiene calculado día por día.
+    const diaQuemada = curva.serie.find(
+      (p) => p.piso !== null && p.balance <= p.piso,
+    );
+    await cambiarEstado(cuenta_id, "quemada", diaQuemada?.fecha ?? fecha);
+    return `"${cuenta.nombre}" se quemó — tocó el piso del drawdown.`;
+  }
+
+  const tieneObjetivo =
+    cuenta.tipo === "challenge" &&
+    cuenta.profit_target_monto !== null &&
+    cuenta.profit_target_monto > 0;
+
+  // `balanceAlPasar()` da el balance que falta para llegar al objetivo, o
+  // null si ya se llegó (o si no aplica) — exactamente lo que hace falta
+  // acá, sin repetir la cuenta a mano.
+  if (tieneObjetivo && balanceAlPasar(cuentaCompletada) === null) {
+    // A diferencia del piso, el objetivo no se mueve con el tiempo: es
+    // siempre tamaño + profit target, así que alcanza con el balance de
+    // cada día (sin el piso por día, que ahí no aplica).
+    const objetivo = cuenta.tamano_cuenta + (cuenta.profit_target_monto ?? 0);
+    const diaPasada = curva.serie.find((p) => p.balance >= objetivo);
+    await cambiarEstado(cuenta_id, "passed", diaPasada?.fecha ?? fecha);
+    return `"${cuenta.nombre}" pasó la evaluación — llegó al 100% del objetivo.`;
+  }
+
+  return null;
+}
+
 async function correrSemilla(cuenta_id: string, fecha: string) {
   const supabase = createClient();
 

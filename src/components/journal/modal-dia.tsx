@@ -18,6 +18,7 @@ import {
   type Sentido,
   type Sesion,
 } from "@/lib/resultados";
+import { BotonSigno } from "@/components/boton-signo";
 import { SelectorSentido } from "@/components/selector-sentido";
 import { SelectorSesion } from "@/components/selector-sesion";
 
@@ -86,6 +87,8 @@ function AltaResultado({
   // Tampoco se limpia: el segundo trade del día cae casi siempre en la
   // misma sesión que el primero.
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
+  /** Aviso de que alguna cuenta se cerró sola (quemada o passed). */
+  const [avisoCierre, setAvisoCierre] = useState<string | null>(null);
 
   // Cambiar de día limpia el formulario: cargar un resultado en la fecha
   // equivocada es de los errores más caros y más fáciles de cometer.
@@ -103,6 +106,7 @@ function AltaResultado({
       setMonto("");
       setMaximo("");
     }
+    if (estado.cierre) setAvisoCierre(estado.cierre);
   }, [estado]);
 
   /**
@@ -198,17 +202,20 @@ function AltaResultado({
 
         <SelectorSesion valor={sesiones} onCambiar={setSesiones} compacto />
 
-        <label className="w-32">
-          <span className="sr-only">Resultado en dólares</span>
-          <input
-            name="monto"
-            inputMode="decimal"
-            placeholder="USD"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
-          />
-        </label>
+        <div className="flex w-40 gap-1.5">
+          <BotonSigno valor={monto} onCambiar={setMonto} />
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Resultado en dólares</span>
+            <input
+              name="monto"
+              inputMode="decimal"
+              placeholder="USD"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none transition focus:border-emerald-500"
+            />
+          </label>
+        </div>
 
         {pideMaximo && (
           <label className="w-36">
@@ -239,6 +246,19 @@ function AltaResultado({
             : "Negativo si perdiste. Tocá varias cuentas para cargar el mismo monto en todas."
         )}
       </p>
+
+      {avisoCierre && (
+        <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          <p className="text-xs font-medium text-amber-300">{avisoCierre}</p>
+          <button
+            type="button"
+            onClick={() => setAvisoCierre(null)}
+            className="shrink-0 text-xs text-amber-400/70 transition hover:text-amber-300"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -279,15 +299,23 @@ function FilaEntrada({
   const [monto, setMonto] = useState(String(entrada.monto));
   const [sentido, setSentido] = useState<Sentido | null>(entrada.sentido);
   const [sesiones, setSesiones] = useState<Sesion[]>(entrada.sesiones ?? []);
+  /**
+   * Aviso de cierre automático. Se guarda aparte de `editando` porque al
+   * guardar la fila vuelve sola a modo lectura (ver el efecto de abajo) y
+   * el cartel se perdería si viviera solo dentro del formulario de edición.
+   */
+  const [avisoCierre, setAvisoCierre] = useState<string | null>(null);
 
   // Al guardar, la fila vuelve a modo lectura. El valor nuevo llega solo
   // por el revalidate del server.
   useEffect(() => {
     if (estado.ok) setEditando(false);
-  }, [estado.ok]);
+    if (estado.cierre) setAvisoCierre(estado.cierre);
+  }, [estado]);
 
   if (editando) {
     return (
+      <>
       <li className="py-1.5">
         <form action={accion} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="id" value={entrada.id} />
@@ -296,17 +324,20 @@ function FilaEntrada({
             {entrada.cuenta}
           </span>
 
-          <label className="w-28">
-            <span className="sr-only">Resultado</span>
-            <input
-              name="monto"
-              inputMode="decimal"
-              autoFocus
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm outline-none transition focus:border-emerald-500"
-            />
-          </label>
+          <div className="flex w-32 gap-1">
+            <BotonSigno valor={monto} onCambiar={setMonto} />
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Resultado</span>
+              <input
+                name="monto"
+                inputMode="decimal"
+                autoFocus
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-sm outline-none transition focus:border-emerald-500"
+              />
+            </label>
+          </div>
 
           <SelectorSentido valor={sentido} onCambiar={setSentido} />
 
@@ -332,10 +363,26 @@ function FilaEntrada({
           )}
         </form>
       </li>
+        {avisoCierre && (
+          <li className="py-1">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              <p className="text-xs font-medium text-amber-300">{avisoCierre}</p>
+              <button
+                type="button"
+                onClick={() => setAvisoCierre(null)}
+                className="shrink-0 text-xs text-amber-400/70 transition hover:text-amber-300"
+              >
+                Cerrar
+              </button>
+            </div>
+          </li>
+        )}
+    </>
     );
   }
 
   return (
+    <>
     <li className="flex items-center justify-between gap-3 py-1.5">
       <span className="min-w-0">
         {entrada.sentido && (
@@ -408,6 +455,21 @@ function FilaEntrada({
         </button>
       </span>
     </li>
+      {avisoCierre && (
+        <li className="py-1">
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <p className="text-xs font-medium text-amber-300">{avisoCierre}</p>
+            <button
+              type="button"
+              onClick={() => setAvisoCierre(null)}
+              className="shrink-0 text-xs text-amber-400/70 transition hover:text-amber-300"
+            >
+              Cerrar
+            </button>
+          </div>
+        </li>
+      )}
+    </>
   );
 }
 

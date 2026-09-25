@@ -164,6 +164,9 @@ La lista completa de huecos, priorizada y con esfuerzo estimado, está en
 - **`CLAUDE.md`** (este archivo) — qué es el proyecto, decisiones tomadas,
   modelo de datos y las dos secciones largas que hay que leer antes de
   tocar cálculos: **Drawdown** y **Resultados diarios**.
+- **`docs/PENDIENTES.md`** — la lista viva de lo que falta, sin orden de
+  prioridad. Es donde se anota lo nuevo apenas aparece; el detalle largo
+  vive en el ROADMAP o en LO-QUE-NOS-FALTA y desde ahí se linkea.
 - **`docs/ROADMAP.md`** — el plan paso a paso, qué está hecho y qué falta.
 - **`docs/COMPETIDORES.md`** — PropTracker y Trading Control por dentro,
   tabla comparativa y nuestras ventajas y desventajas.
