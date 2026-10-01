@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Calendario } from "./calendario";
+import { CuadroBalance } from "./cuadro-balance";
 import {
   anillo,
   chipDeCuenta,
@@ -114,11 +115,14 @@ export function HomeVista({
   cuentas,
   resultados,
   movimientos,
+  series,
 }: {
   /** Con el balance y el pico ya calculados por la página. */
   cuentas: Cuenta[];
   resultados: Resultado[];
   movimientos: Movimiento[];
+  /** Balance al cierre de cada día, por cuenta. Lo usa el cuadro de balance. */
+  series: Record<string, { fecha: string; balance: number }[]>;
 }) {
   const [modo, setModo] = useState<ModoHome>("trading");
   const [tipo, setTipo] = useState<FiltroTipo>(TIPO_DEFAULT);
@@ -490,6 +494,9 @@ export function HomeVista({
           />
         )}
       </div>
+
+      {/* ---------- Balance de las cuentas (prueba, ver docs/PLAN-CUADRO-BALANCE.md) ---------- */}
+      <CuadroBalance cuentas={cuentas} series={series} />
 
       {/* ---------- El calendario ---------- */}
       {calendario && (

@@ -7,6 +7,7 @@ import {
   CANTIDAD_MAXIMA_LOTE,
   enJuego,
   esCierre,
+  estaCongelado,
   ESTADOS,
   estadoValido,
   MODOS_DRAWDOWN,
@@ -14,11 +15,13 @@ import {
   type ModoDrawdown,
   netoConSplit,
   nombresParaLote,
+  picoDeCuenta,
   tieneRetiro,
   TIPOS,
   trailea,
   UMBRAL_PRECAUCION_DEFAULT,
   UMBRAL_SALUDABLE_DEFAULT,
+  type Cuenta,
   type Estado,
   type Tipo,
 } from "@/lib/cuentas";
@@ -420,6 +423,110 @@ export async function actualizarBalance(
 
   revalidatePath("/cuentas");
   return { ok: "Balance actualizado." };
+}
+
+/**
+ * Ajusta el colchón (balance − piso) que se ve en la tarjeta, sin tocar el
+ * balance. Mueve el número que sostiene ese colchón según el modo de la
+ * cuenta:
+ *
+ * - Si el trailing ya está congelado, el colchón sale de `piso_congelado`:
+ *   se pisa directo.
+ * - En estático, el piso sale de `tamano_cuenta − drawdown_maximo_monto`:
+ *   se recalcula `drawdown_maximo_monto` (y su `%` a juego) para que el
+ *   piso dé el colchón pedido.
+ * - En EOD/trailing sin congelar, el piso persigue al pico
+ *   (`pico − drawdown_maximo_monto`): se recalcula `drawdown_maximo_monto`
+ *   contra el pico actual.
+ *
+ * El balance no se toca en ningún camino.
+ */
+export async function ajustarColchon(
+  _prev: EstadoForm,
+  fd: FormData,
+): Promise<EstadoForm> {
+  const id = String(fd.get("id") ?? "");
+  const balanceLive = numero(fd, "balance_actual");
+  const colchonNuevo = numero(fd, "colchon");
+  if (!id) return { error: "Falta la cuenta." };
+  if (balanceLive === null) return { error: "Falta el balance de la cuenta." };
+  if (colchonNuevo === null) return { error: "Escribí un número." };
+
+  const supabase = createClient();
+
+  const { data: cuenta } = await supabase
+    .from("cuentas_fondeo")
+    .select(
+      "tamano_cuenta, modo_drawdown, drawdown_maximo_monto, piso_congelado, pico_semilla",
+    )
+    .eq("id", id)
+    .single();
+
+  if (!cuenta) return { error: "No encontré la cuenta." };
+  if (cuenta.drawdown_maximo_monto === null) {
+    return { error: "Esta cuenta no tiene drawdown cargado." };
+  }
+
+  // Objeto con los datos vivos (balance de verdad) para reusar las mismas
+  // fórmulas que usa la tarjeta (picoDeCuenta / estaCongelado). Solo trae
+  // los campos que esas funciones miran.
+  const cuentaViva = {
+    tamano_cuenta: cuenta.tamano_cuenta,
+    modo_drawdown: cuenta.modo_drawdown as ModoDrawdown,
+    drawdown_maximo_monto: cuenta.drawdown_maximo_monto,
+    piso_congelado: cuenta.piso_congelado,
+    pico_semilla: cuenta.pico_semilla,
+    balance_actual: balanceLive,
+  } as Pick<
+    Cuenta,
+    | "tamano_cuenta"
+    | "modo_drawdown"
+    | "drawdown_maximo_monto"
+    | "piso_congelado"
+    | "pico_semilla"
+    | "balance_actual"
+  > as Cuenta;
+
+  const picoActual = picoDeCuenta(cuentaViva);
+  const pisoDeseado = balanceLive - colchonNuevo;
+
+  let update: Record<string, number | null> = {};
+
+  if (estaCongelado(cuentaViva)) {
+    update = { piso_congelado: pisoDeseado };
+  } else if (!trailea(cuenta.modo_drawdown)) {
+    const ddNuevo = cuenta.tamano_cuenta - pisoDeseado;
+    if (ddNuevo <= 0) {
+      return { error: "Ese colchón deja el drawdown en cero o negativo." };
+    }
+    update = {
+      drawdown_maximo_monto: ddNuevo,
+      drawdown_maximo_pct: cuenta.tamano_cuenta
+        ? (ddNuevo / cuenta.tamano_cuenta) * 100
+        : null,
+    };
+  } else {
+    const ddNuevo = picoActual - pisoDeseado;
+    if (ddNuevo <= 0) {
+      return { error: "Ese colchón deja el drawdown en cero o negativo." };
+    }
+    update = {
+      drawdown_maximo_monto: ddNuevo,
+      drawdown_maximo_pct: cuenta.tamano_cuenta
+        ? (ddNuevo / cuenta.tamano_cuenta) * 100
+        : null,
+    };
+  }
+
+  const { error } = await supabase
+    .from("cuentas_fondeo")
+    .update(update)
+    .eq("id", id);
+
+  if (error) return { error: mensajeDeError(error.message) };
+
+  revalidatePath("/cuentas");
+  return { ok: "Drawdown actualizado." };
 }
 
 /* ---------- retiros (tabla payouts) ---------- */

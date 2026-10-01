@@ -40,6 +40,10 @@ export default async function HomePage() {
   // Igual que en Cuentas: el balance y el pico no se guardan, se calculan
   // con los resultados diarios y los retiros. Se completan acá una sola vez
   // y el resto de la pantalla los lee como si fueran datos.
+  // La curva de cada cuenta (solo fecha y balance al cierre) la usa el
+  // cuadro de balance para saber con cuánto arrancó la semana / el mes.
+  const series: Record<string, { fecha: string; balance: number }[]> = {};
+
   const conBalance = ordenarCuentas(
     ((cuentas ?? []) as Cuenta[]).map((c) => {
       const estado = estadoDeCuenta(
@@ -47,6 +51,8 @@ export default async function HomePage() {
         porCuentaResultados[c.id] ?? [],
         porCuentaRetiros[c.id] ?? []
       );
+
+      series[c.id] = estado.serie.map((p) => ({ fecha: p.fecha, balance: p.balance }));
 
       return { ...c, balance_actual: estado.balance, pico_semilla: estado.pico };
     }),
@@ -80,6 +86,7 @@ export default async function HomePage() {
           cuentas={conBalance}
           resultados={resultados}
           movimientos={movimientos}
+          series={series}
         />
       )}
     </>

@@ -119,6 +119,20 @@ function AltaResultado({
    */
   const disponibles = cuentas.filter((c) => enJuego(c.estado));
 
+  // Si una cuenta elegida deja de estar en juego (se quemó o pasó, capaz
+  // que sola, con el cierre automático) su chip desaparece de acá abajo
+  // — y sin esto su id se quedaba pegado en `elegidas` para siempre, sin
+  // ningún chip visible con el que sacarla: la próxima carga le seguía
+  // mandando una entrada de atrás, sin que se viera en pantalla.
+  useEffect(() => {
+    const ids = new Set(disponibles.map((c) => c.id));
+    setElegidas((v) => {
+      const filtradas = v.filter((id) => ids.has(id));
+      return filtradas.length === v.length ? v : filtradas;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cuentas]);
+
   // Alcanza con que una de las elegidas tenga drawdown que trailea: el
   // dato se guarda solo en las que lo usan.
   const pideMaximo = disponibles.some(

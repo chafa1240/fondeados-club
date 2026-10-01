@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import {
   actualizarBalance,
+  ajustarColchon,
   cambiarEstado,
   eliminarCuenta,
   type EstadoForm,
@@ -183,6 +184,102 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
         {porcentaje(Math.abs(v.pct))})
       </p>
     </div>
+  );
+}
+
+/* ---------- Colchón (drawdown) editable en línea ---------- */
+
+function BotonColchon() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium transition hover:bg-emerald-500 disabled:opacity-50"
+    >
+      {pending ? "…" : "OK"}
+    </button>
+  );
+}
+
+/**
+ * Mismo patrón que `BalanceEditable`, pero mueve el colchón (lo que falta
+ * para tocar el drawdown) sin tocar el balance. El balance vivo viaja como
+ * campo oculto porque la fila de la cuenta en la base no guarda el balance
+ * calculado (ver `actions.ts`).
+ */
+function ColchonEditable({
+  cuenta,
+  colchon: c,
+  salud: s,
+}: {
+  cuenta: Cuenta;
+  colchon: { monto: number; pct: number };
+  salud: "saludable" | "precaucion" | "critico" | null;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [estado, formAction] = useFormState<EstadoForm, FormData>(
+    ajustarColchon,
+    {},
+  );
+
+  useEffect(() => {
+    if (estado.ok) setEditando(false);
+  }, [estado.ok]);
+
+  const color =
+    s === "critico"
+      ? "text-rose-400"
+      : s === "precaucion"
+        ? "text-amber-400"
+        : "text-emerald-400";
+
+  if (editando) {
+    return (
+      <form
+        action={formAction}
+        className="mt-1 flex items-center gap-2 text-xs"
+      >
+        <input type="hidden" name="id" value={cuenta.id} />
+        <input
+          type="hidden"
+          name="balance_actual"
+          value={cuenta.balance_actual}
+        />
+        <span className="text-neutral-500">Drawdown:</span>
+        <input
+          name="colchon"
+          inputMode="decimal"
+          autoFocus
+          defaultValue={c.monto}
+          className="w-24 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+        />
+        <BotonColchon />
+        <button
+          type="button"
+          onClick={() => setEditando(false)}
+          className="text-neutral-500 hover:text-neutral-300"
+        >
+          Cancelar
+        </button>
+        {estado.error && (
+          <span className="text-rose-400">{estado.error}</span>
+        )}
+      </form>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditando(true)}
+      title="Ajustar el drawdown (no toca el balance)"
+      className="group mt-1 flex items-baseline gap-1.5 text-left text-xs text-neutral-500"
+    >
+      Drawdown: <span className={color}>{plata(c.monto)} ({porcentaje(c.pct)})</span>
+      <span className="text-neutral-600 opacity-0 transition group-hover:opacity-100">
+        editar
+      </span>
+    </button>
   );
 }
 
@@ -693,23 +790,9 @@ export function TarjetaCuenta({
       )}
 
       {/* Lo que importa mirar todos los días no es el drawdown máximo (ese
-          no cambia nunca), sino cuánta plata queda hasta tocarlo. */}
-      {c !== null && (
-        <p className="mt-1 text-xs text-neutral-500">
-          Drawdown:{" "}
-          <span
-            className={
-              s === "critico"
-                ? "text-rose-400"
-                : s === "precaucion"
-                  ? "text-amber-400"
-                  : "text-emerald-400"
-            }
-          >
-            {plata(c.monto)} ({porcentaje(c.pct)})
-          </span>
-        </p>
-      )}
+          no cambia nunca), sino cuánta plata queda hasta tocarlo. Editable
+          en línea: mueve el drawdown, nunca el balance. */}
+      {c !== null && <ColchonEditable cuenta={cuenta} colchon={c} salud={s} />}
 
 
       {/* Lo mínimo del ciclo */}

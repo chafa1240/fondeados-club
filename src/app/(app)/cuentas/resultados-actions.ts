@@ -215,7 +215,28 @@ export async function guardarEnVariasCuentas(
   // solo el primero.
   const avisosCierre: string[] = [];
 
-  for (const cuenta_id of ids) {
+  // Defensa aparte del chip que se saca solo cuando la cuenta deja de
+  // estar en juego (ver `AltaResultado` en el journal): si de todos
+  // modos llega un id de una cuenta ya cerrada — quedó seleccionada de
+  // antes y el navegador no se actualizó, dos pestañas abiertas, etc. —
+  // se descarta acá en vez de agregarle un resultado a una cuenta
+  // quemada o pasada.
+  const supabaseCheq = createClient();
+  const { data: estados } = await supabaseCheq
+    .from("cuentas_fondeo")
+    .select("id, nombre, estado")
+    .in("id", ids);
+
+  const idsEnJuego = new Set(
+    (estados ?? []).filter((c) => enJuego(c.estado)).map((c) => c.id),
+  );
+  for (const c of estados ?? []) {
+    if (!idsEnJuego.has(c.id)) {
+      errores.push(`"${c.nombre}" ya no está en juego, no se le cargó nada.`);
+    }
+  }
+
+  for (const cuenta_id of ids.filter((id) => idsEnJuego.has(id))) {
     const uno = new FormData();
     uno.set("cuenta_id", cuenta_id);
     uno.set("fecha", fecha);
