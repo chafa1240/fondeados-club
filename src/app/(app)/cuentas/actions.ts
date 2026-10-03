@@ -448,6 +448,11 @@ export async function ajustarColchon(
   const id = String(fd.get("id") ?? "");
   const balanceLive = numero(fd, "balance_actual");
   const colchonNuevo = numero(fd, "colchon");
+  // El pico vivo (con los máximos intradía de los resultados), el mismo que
+  // usa la tarjeta para calcular el colchón. El `pico_semilla` de la base es
+  // solo el ancla y suele ser más bajo: si se calculaba contra ese, el
+  // colchón guardado no daba el número que escribiste.
+  const picoLive = numero(fd, "pico");
   if (!id) return { error: "Falta la cuenta." };
   if (balanceLive === null) return { error: "Falta el balance de la cuenta." };
   if (colchonNuevo === null) return { error: "Escribí un número." };
@@ -475,7 +480,7 @@ export async function ajustarColchon(
     modo_drawdown: cuenta.modo_drawdown as ModoDrawdown,
     drawdown_maximo_monto: cuenta.drawdown_maximo_monto,
     piso_congelado: cuenta.piso_congelado,
-    pico_semilla: cuenta.pico_semilla,
+    pico_semilla: picoLive ?? cuenta.pico_semilla,
     balance_actual: balanceLive,
   } as Pick<
     Cuenta,
@@ -506,6 +511,13 @@ export async function ajustarColchon(
         : null,
     };
   } else {
+    // En trailing el piso nunca pasa del congelado: pedir un piso más alto
+    // no se puede lograr moviendo el drawdown.
+    if (cuenta.piso_congelado !== null && pisoDeseado > cuenta.piso_congelado) {
+      return {
+        error: `Con el piso congelado en ${cuenta.piso_congelado}, el colchón mínimo es ${Math.round(balanceLive - cuenta.piso_congelado)}.`,
+      };
+    }
     const ddNuevo = picoActual - pisoDeseado;
     if (ddNuevo <= 0) {
       return { error: "Ese colchón deja el drawdown en cero o negativo." };

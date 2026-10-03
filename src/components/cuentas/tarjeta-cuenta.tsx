@@ -132,9 +132,12 @@ function BalanceEditable({ cuenta }: { cuenta: Cuenta }) {
     {}
   );
 
+  // Depende del objeto entero y no de `estado.ok`: el segundo guardado
+  // devuelve el mismo texto ("… actualizado.") y con `[estado.ok]` el
+  // efecto no volvía a correr, así que el formulario quedaba abierto.
   useEffect(() => {
     if (estado.ok) setEditando(false);
-  }, [estado.ok]);
+  }, [estado]);
 
   const v = variacion(cuenta);
   const positivo = v.monto >= 0;
@@ -223,9 +226,12 @@ function ColchonEditable({
     {},
   );
 
+  // Depende del objeto entero y no de `estado.ok`: el segundo guardado
+  // devuelve el mismo texto ("… actualizado.") y con `[estado.ok]` el
+  // efecto no volvía a correr, así que el formulario quedaba abierto.
   useEffect(() => {
     if (estado.ok) setEditando(false);
-  }, [estado.ok]);
+  }, [estado]);
 
   const color =
     s === "critico"
@@ -238,7 +244,7 @@ function ColchonEditable({
     return (
       <form
         action={formAction}
-        className="mt-1 flex items-center gap-2 text-xs"
+        className="mt-1 flex flex-wrap items-center gap-2 text-xs"
       >
         <input type="hidden" name="id" value={cuenta.id} />
         <input
@@ -246,6 +252,8 @@ function ColchonEditable({
           name="balance_actual"
           value={cuenta.balance_actual}
         />
+        {/* Pico vivo (ya calculado por la página), no el de la base. */}
+        <input type="hidden" name="pico" value={cuenta.pico_semilla} />
         <span className="text-neutral-500">Drawdown:</span>
         <input
           name="colchon"
@@ -263,7 +271,7 @@ function ColchonEditable({
           Cancelar
         </button>
         {estado.error && (
-          <span className="text-rose-400">{estado.error}</span>
+          <p className="w-full text-rose-400">{estado.error}</p>
         )}
       </form>
     );
